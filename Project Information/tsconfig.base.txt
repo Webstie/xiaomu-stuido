@@ -1,0 +1,74 @@
+1. Purpose of the Robot
+Project Purpose:
+This robot, 小沐, is designed to provide emotional support and interactive music-based therapy for children aged 3–10 in the organization 小水滴 (Beijing). These children often experience long-term hospitalization, isolation, and limited outdoor activity, which can lead to feelings of loneliness, anxiety, and reduced emotional expression.
+The purpose of 小沐 is to:
+	•	Reduce loneliness through companionship 
+	•	Build confidence through guided interaction 
+	•	Support emotional expression through music 
+	•	Encourage identity exploration by helping children discover their “own sound” 
+Instead of passive entertainment, 小沐 delivers active, participatory experiences where children create, respond, and express, making them feel seen, heard, and valued.
+
+
+
+Character design:
+Voice type: energetic (in conversations), warm (music therapy)—My voice?
+Personality Framework: Playful, curious, encouraging, cheerful
+Back story: 
+In a tiny, colorful town called Rainbow Diverse, every house has its own song. The wind hums lullabies, the trees tap gentle rhythms, and everyone believes that music is the magic that makes them who they are.
+In this town lives a little music robot. She loves listening to all the different melodies around her. But she has a special wish — to travel beyond Rainbow Diverse and find new friends whose songs are still hiding inside their hearts.
+She believes music is a gentle kind of magic. A soft hum can calm a stormy feeling. A brave rhythm can chase away worry. A happy tune can make lonely days brighter.
+So she came to find you.
+She is here to be your lovely friend — to help you discover your own music, share your feelings through sound, and create beautiful songs together.
+Because she knows something very important:
+Every heart has a song. 
+
+2. Core Functions 
+A. Emotional Recognition System
+	•	Uses facial expression detection + simple voice tone analysis 
+	•	Classifies emotional state (e.g., happy, sad, anxious, neutral) 
+	•	Adjusts interaction pathway accordingly 
+👉 Example:
+	•	Sad → breathing + calming music 
+	•	Happy → rhythm + creative activities 
+
+B. Adaptive Music Therapy Engine
+A 4-level structured interaction system incorporate in the stories (mentioned earlier):
+Level 1: Breathing + Regulation
+	•	Guided humming + breathing synchronization 
+	•	Helps regulate physiological stress response 
+Level 2: Body Rhythm Interaction
+	•	Movement-based engagement (clap, tap (audio instructions)) 
+	•	Improves motor coordination + engagement 
+	•	(Mainly rely on prerecorded audio)
+Level 3: Emotion-to-Music Mapping
+	•	Teaches how musical elements relate to emotions: 
+	•	Tempo 
+	•	Pitch 
+	•	Dynamics 
+	•	Builds emotional awareness 
+	•	Prerecorded audio
+Level 4: Co-Creation System
+	•	Child selects: 
+	•	Notes (3-5 notes)
+	•	Instruments (about 5-8 choices)
+	•	Robot generates music in real time / or I can prerecord different music from the same chords
+👉 Outcome: Child becomes a creator, not just a listener
+
+C. Conversational AI Companion
+	•	Warm + playful dialogue system 
+	•	Guided prompts for: 
+	•	Emotional check-ins 
+	•	Maintains friend-like relationship 
+
+D. Personalized Interaction Loop
+	•	Remembers child preferences (music style, responses) 
+	•	Adjusts future sessions accordingly 
+	•	Creates a sense of: 
+	•	Continuity 
+	•	Personal connection
+
+E. Possible functions
+	•	When the robot is expressing its emotions, incorporate some simple motions (eg. Turning in a circle, front, back, right, left)
+
+
+

@@ -1,0 +1,24 @@
+{
+  "name": "xiaomu-studio",
+  "private": true,
+  "version": "0.0.1",
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "dev": "concurrently -n studio,server -c cyan,yellow \"pnpm --filter @xiaomu/studio dev\" \"pnpm --filter @xiaomu/server dev\"",
+    "build": "pnpm --filter @xiaomu/contracts build && pnpm --filter @xiaomu/studio build && pnpm --filter @xiaomu/server build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "spike:viseme": "tsx scripts/spike-viseme-zhcn.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "concurrently": "^8.2.2",
+    "dotenv": "^16.4.5",
+    "microsoft-cognitiveservices-speech-sdk": "^1.41.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0"
+  }
+}

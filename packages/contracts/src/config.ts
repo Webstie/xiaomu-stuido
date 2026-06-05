@@ -1,0 +1,329 @@
+import { z } from 'zod';
+import { ExpressionIdSchema, EXPRESSION_IDS } from './expression.js';
+
+// ── Identity ─────────────────────────────────────────────────────────────────
+
+export const IdentitySchema = z.object({
+  robotName: z.string().min(1),
+  tagline: z.string(),
+  primaryLanguage: z.enum(['zh-CN', 'en-US']),
+  secondaryLanguage: z.enum(['zh-CN', 'en-US']).optional(),
+});
+
+export type Identity = z.infer<typeof IdentitySchema>;
+
+// ── Personality ───────────────────────────────────────────────────────────────
+
+export const PersonalitySchema = z.object({
+  traits: z.array(z.string()),
+  doList: z.array(z.string()),
+  dontList: z.array(z.string()),
+  defaultTemperature: z.number().min(0).max(2),
+  therapyTemperature: z.number().min(0).max(2),
+});
+
+export type Personality = z.infer<typeof PersonalitySchema>;
+
+// ── Voice ─────────────────────────────────────────────────────────────────────
+
+export const VoiceStyleOverrideSchema = z.object({
+  activityId: z.string(),
+  ssmlStyle: z.string(),
+  ssmlRate: z.string().optional(),
+  ssmlPitch: z.string().optional(),
+});
+
+export const VoiceSchema = z.object({
+  defaultVoice: z.string(),
+  styleOverrides: z.array(VoiceStyleOverrideSchema),
+});
+
+export type Voice = z.infer<typeof VoiceSchema>;
+
+// ── Voice Samples ─────────────────────────────────────────────────────────────
+
+export const VoiceSampleSchema = z.object({
+  id: z.string(),
+  category: z.enum([
+    'greeting', 'breathing-exercise', 'encouragement', 'celebration',
+    'gentle-redirect', 'curiosity-prompt', 'sadness-mirror',
+    'sleepy-wind-down', 'body-rhythm-prompt', 'end-of-session',
+  ]),
+  text: z.string(),
+  language: z.enum(['zh-CN', 'en-US']),
+});
+
+export type VoiceSample = z.infer<typeof VoiceSampleSchema>;
+
+// ── Face ──────────────────────────────────────────────────────────────────────
+
+export const ExpressionPoseSchema = z.object({
+  id: ExpressionIdSchema,
+  label: z.string(),
+  colorHex: z.string(),
+  // SVG path data and shape params are renderer-side; stored as opaque config
+  params: z.record(z.string(), z.unknown()),
+});
+
+export type ExpressionPose = z.infer<typeof ExpressionPoseSchema>;
+
+export const FaceSchema = z.object({
+  renderer: z.enum(['svg2d']),
+  idleEnabled: z.boolean(),
+  expressionLibrary: z.record(
+    ExpressionIdSchema,
+    ExpressionPoseSchema,
+  ),
+});
+
+export type Face = z.infer<typeof FaceSchema>;
+
+// ── Activities ────────────────────────────────────────────────────────────────
+
+/**
+ * One age bucket → ordered list of audio filenames + an optional narration
+ * script the model follows for that age range. minAge <= persona.ageYears <= maxAge.
+ */
+export const AgeMusicBucketSchema = z.object({
+  minAge: z.number().int().min(0),
+  maxAge: z.number().int().min(0),
+  audioFilenames: z.array(z.string()),
+  narrationScript: z.string().optional(),
+});
+
+export type AgeMusicBucket = z.infer<typeof AgeMusicBucketSchema>;
+
+/**
+ * Per-activity scripted-audio config. Any activity that has age-bucketed
+ * audio + narration script (body-rhythm, breathing) uses this shape.
+ */
+export const ScriptedActivityConfigSchema = z.object({
+  ageBuckets: z.array(AgeMusicBucketSchema),
+});
+
+export type ScriptedActivityConfig = z.infer<typeof ScriptedActivityConfigSchema>;
+
+/**
+ * One emotion → audio + narration script. Used by emotion-music-mapping
+ * (and any future activity that's selected by emotion rather than age).
+ */
+export const EmotionMusicBucketSchema = z.object({
+  emotionId: z.string(),
+  label: z.string(),
+  emoji: z.string(),
+  level: z.number().int().min(1),
+  audioFilenames: z.array(z.string()),
+  narrationScript: z.string(),
+  /** How many sections (TTS + audio cycles) this emotion gets in a row. Default 1. */
+  repeatCount: z.number().int().min(1).optional(),
+});
+
+export type EmotionMusicBucket = z.infer<typeof EmotionMusicBucketSchema>;
+
+export const EmotionScriptedConfigSchema = z.object({
+  emotionBuckets: z.array(EmotionMusicBucketSchema),
+  /** Optional closing line spoken after all emotion sections; no audio. */
+  closingScript: z.string().optional(),
+});
+
+export type EmotionScriptedConfig = z.infer<typeof EmotionScriptedConfigSchema>;
+
+/**
+ * One explicit (note-triple, variant) → audio file mapping for Co-Creation.
+ * Overrides the filename-based auto-discovery in coCreationAudio.ts.
+ * Notes are compared canonically (sorted, case-insensitive, Sol≡So, Ti≡Si).
+ */
+export const CoCreationAudioMappingSchema = z.object({
+  notes: z.array(z.string()).length(3),
+  variant: z.enum(['original', 'revised', 'background']),
+  filename: z.string(),
+});
+
+export type CoCreationAudioMapping = z.infer<typeof CoCreationAudioMappingSchema>;
+
+/**
+ * Per-activity config for interactive Co-Creation of Music. Notes are the
+ * picker's options (the script restricts to 6); narrationScript is the full
+ * branching dialogue, used as a guide rather than spoken verbatim per turn.
+ * audioMappings lets the studio explicitly assign mp3s to (notes, variant)
+ * combinations. Empty / unmapped combinations fall through to the
+ * filename-based auto-discovery in /data/audio/.
+ */
+export const CoCreationConfigSchema = z.object({
+  notes: z.array(z.string()),
+  narrationScript: z.string(),
+  audioMappings: z.array(CoCreationAudioMappingSchema).optional(),
+});
+
+export type CoCreationConfig = z.infer<typeof CoCreationConfigSchema>;
+
+// ── Games (separate from the four numbered activity levels) ──────────────────
+
+export const RhythmStoryGameConfigSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  kind: z.literal('rhythm-story'),
+  prefix: z.string(),
+  stories: z.array(z.string()),
+  completionResponses: z.array(z.string()),
+});
+
+export type RhythmStoryGameConfig = z.infer<typeof RhythmStoryGameConfigSchema>;
+
+export const SoundDetectiveSoundSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  audioFilename: z.string(),
+  question: z.string(),
+  /**
+   * Deprecated — kept for backward-compat with already-persisted configs.
+   * The runtime uses the AI 'sound-match' classifier with `label` as context.
+   */
+  correctKeywords: z.array(z.string()).optional(),
+  correctResponse: z.string(),
+  wrongResponse: z.string(),
+});
+
+export type SoundDetectiveSound = z.infer<typeof SoundDetectiveSoundSchema>;
+
+export const SoundDetectiveGameConfigSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  kind: z.literal('sound-detective'),
+  intro: z.string(),
+  sounds: z.array(SoundDetectiveSoundSchema),
+});
+
+export type SoundDetectiveGameConfig = z.infer<typeof SoundDetectiveGameConfigSchema>;
+
+export const PlaceholderGameConfigSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  kind: z.literal('placeholder'),
+  notes: z.string().optional(),
+});
+
+export type PlaceholderGameConfig = z.infer<typeof PlaceholderGameConfigSchema>;
+
+export const GameConfigSchema = z.discriminatedUnion('kind', [
+  RhythmStoryGameConfigSchema,
+  SoundDetectiveGameConfigSchema,
+  PlaceholderGameConfigSchema,
+]);
+
+export type GameConfig = z.infer<typeof GameConfigSchema>;
+
+export const ActivitySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: z.enum(['breathing', 'body-rhythm', 'emotion-music-mapping', 'co-creation']),
+  description: z.string(),
+  defaultExpression: ExpressionIdSchema,
+  ssmlStyleOverride: z.string().optional(),
+  scripted: ScriptedActivityConfigSchema.optional(),
+  emotionScripted: EmotionScriptedConfigSchema.optional(),
+  coCreation: CoCreationConfigSchema.optional(),
+});
+
+export type Activity = z.infer<typeof ActivitySchema>;
+
+// ── Emotion Routing ───────────────────────────────────────────────────────────
+
+export const EmotionRouteSchema = z.object({
+  emotionLabel: z.string(),
+  targetExpression: ExpressionIdSchema,
+  notes: z.string().optional(),
+});
+
+export type EmotionRoute = z.infer<typeof EmotionRouteSchema>;
+
+// ── Age Routing ───────────────────────────────────────────────────────────────
+
+export const AgeRangeRouteSchema = z.object({
+  minAge: z.number().int(),
+  maxAge: z.number().int(),
+  languageRegister: z.enum(['very-simple', 'simple', 'normal', 'nuanced']),
+  preferredActivities: z.array(z.string()),
+  notes: z.string().optional(),
+});
+
+export type AgeRangeRoute = z.infer<typeof AgeRangeRouteSchema>;
+
+// ── Conversation Flow ─────────────────────────────────────────────────────────
+
+export const ConversationFlowSchema = z.object({
+  sessionOpeningScript: z.string(),
+  sessionClosingScript: z.string(),
+  transitionPhrases: z.array(z.string()),
+  maxTurnsBeforeBreak: z.number().int().positive(),
+});
+
+export type ConversationFlow = z.infer<typeof ConversationFlowSchema>;
+
+// ── Safety ────────────────────────────────────────────────────────────────────
+
+export const SafetySchema = z.object({
+  avoidTopics: z.array(z.string()),
+  hardProhibitions: z.array(z.string()),
+  distressKeywords: z.array(z.string()),
+});
+
+export type Safety = z.infer<typeof SafetySchema>;
+
+// ── Music Preferences (global) ────────────────────────────────────────────────
+
+export const GlobalMusicPreferencesSchema = z.object({
+  maxVolumeGlobal: z.number().min(0).max(100),
+  avoidGenres: z.array(z.string()),
+  notes: z.string(),
+});
+
+export type GlobalMusicPreferences = z.infer<typeof GlobalMusicPreferencesSchema>;
+
+// ── StudioConfig (root) ───────────────────────────────────────────────────────
+
+export const StudioConfigSchema = z.object({
+  id: z.string().uuid(),
+  partitionKey: z.string().default('config'),
+  schemaVersion: z.literal(1),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+
+  identity: IdentitySchema,
+  personality: PersonalitySchema,
+  voice: VoiceSchema,
+  voiceSamples: z.array(VoiceSampleSchema),
+  face: FaceSchema,
+  activities: z.array(ActivitySchema),
+  games: z.array(GameConfigSchema).optional(),
+  emotionRouting: z.array(EmotionRouteSchema),
+  ageRouting: z.array(AgeRangeRouteSchema),
+  conversationFlow: ConversationFlowSchema,
+  safety: SafetySchema,
+  musicPreferences: GlobalMusicPreferencesSchema,
+});
+
+export type StudioConfig = z.infer<typeof StudioConfigSchema>;
+
+// ── Activity context (passed to chat per-session) ─────────────────────────────
+
+export const ActivityContextSchema = z.object({
+  activityId:   z.string().optional(),
+  activityName: z.string().optional(),
+  type:         z.enum(['breathing', 'body-rhythm', 'emotion-music-mapping', 'co-creation']).optional(),
+  description:  z.string().optional(),
+  therapyMode:  z.boolean().optional(),
+  /** 0-based index of the next narration script section to deliver. */
+  sectionIndex: z.number().int().nonnegative().optional(),
+  /**
+   * Co-creation: variant of the last play_melody call (or 'none' before any).
+   * Used by the server to disambiguate "which stage are we on" since the
+   * conversation history contains repeated "继续" silent advances that
+   * otherwise leave the model guessing.
+   */
+  coCreationLastVariant: z.enum(['none', 'original', 'revised', 'background']).optional(),
+  /** Co-creation: notes the child picked, persisted across the session. */
+  coCreationNotes: z.array(z.string()).optional(),
+});
+
+export type ActivityContext = z.infer<typeof ActivityContextSchema>;

@@ -1,0 +1,265 @@
+{
+  "timestamp": "2026-05-27T04:29:52.813Z",
+  "input": "你好，我是小沐，今天想和你一起唱歌。",
+  "voice": "zh-CN-XiaoxiaoMultilingualNeural",
+  "region": "southeastasia",
+  "events": [
+    {
+      "audioOffsetMs": 50,
+      "visemeId": 0
+    },
+    {
+      "audioOffsetMs": 100,
+      "visemeId": 19
+    },
+    {
+      "audioOffsetMs": 137.5,
+      "visemeId": 6
+    },
+    {
+      "audioOffsetMs": 175,
+      "visemeId": 6
+    },
+    {
+      "audioOffsetMs": 225,
+      "visemeId": 6
+    },
+    {
+      "audioOffsetMs": 287.5,
+      "visemeId": 12
+    },
+    {
+      "audioOffsetMs": 362.5,
+      "visemeId": 2
+    },
+    {
+      "audioOffsetMs": 500,
+      "visemeId": 8
+    },
+    {
+      "audioOffsetMs": 512,
+      "visemeId": 0
+    },
+    {
+      "audioOffsetMs": 537.5,
+      "visemeId": 7
+    },
+    {
+      "audioOffsetMs": 575,
+      "visemeId": 8
+    },
+    {
+      "audioOffsetMs": 612.5,
+      "visemeId": 8
+    },
+    {
+      "audioOffsetMs": 662.5,
+      "visemeId": 15
+    },
+    {
+      "audioOffsetMs": 712.5,
+      "visemeId": 6
+    },
+    {
+      "audioOffsetMs": 737.5,
+      "visemeId": 6
+    },
+    {
+      "audioOffsetMs": 775,
+      "visemeId": 16
+    },
+    {
+      "audioOffsetMs": 812.5,
+      "visemeId": 6
+    },
+    {
+      "audioOffsetMs": 850,
+      "visemeId": 2
+    },
+    {
+      "audioOffsetMs": 937.5,
+      "visemeId": 8
+    },
+    {
+      "audioOffsetMs": 1000,
+      "visemeId": 21
+    },
+    {
+      "audioOffsetMs": 1056.25,
+      "visemeId": 7
+    },
+    {
+      "audioOffsetMs": 1112.5,
+      "visemeId": 7
+    },
+    {
+      "audioOffsetMs": 1212.5,
+      "visemeId": 7
+    },
+    {
+      "audioOffsetMs": 1312,
+      "visemeId": 0
+    },
+    {
+      "audioOffsetMs": 1425,
+      "visemeId": 16
+    },
+    {
+      "audioOffsetMs": 1481.25,
+      "visemeId": 6
+    },
+    {
+      "audioOffsetMs": 1537.5,
+      "visemeId": 6
+    },
+    {
+      "audioOffsetMs": 1587.5,
+      "visemeId": 19
+    },
+    {
+      "audioOffsetMs": 1650,
+      "visemeId": 19
+    },
+    {
+      "audioOffsetMs": 1675,
+      "visemeId": 6
+    },
+    {
+      "audioOffsetMs": 1700,
+      "visemeId": 2
+    },
+    {
+      "audioOffsetMs": 1787.5,
+      "visemeId": 19
+    },
+    {
+      "audioOffsetMs": 1850,
+      "visemeId": 16
+    },
+    {
+      "audioOffsetMs": 1893.75,
+      "visemeId": 6
+    },
+    {
+      "audioOffsetMs": 1937.5,
+      "visemeId": 2
+    },
+    {
+      "audioOffsetMs": 2025,
+      "visemeId": 20
+    },
+    {
+      "audioOffsetMs": 2087.5,
+      "visemeId": 12
+    },
+    {
+      "audioOffsetMs": 2175,
+      "visemeId": 1
+    },
+    {
+      "audioOffsetMs": 2225,
+      "visemeId": 1
+    },
+    {
+      "audioOffsetMs": 2287.5,
+      "visemeId": 19
+    },
+    {
+      "audioOffsetMs": 2318.75,
+      "visemeId": 6
+    },
+    {
+      "audioOffsetMs": 2350,
+      "visemeId": 6
+    },
+    {
+      "audioOffsetMs": 2375,
+      "visemeId": 6
+    },
+    {
+      "audioOffsetMs": 2400,
+      "visemeId": 6
+    },
+    {
+      "audioOffsetMs": 2437.5,
+      "visemeId": 6
+    },
+    {
+      "audioOffsetMs": 2462.5,
+      "visemeId": 6
+    },
+    {
+      "audioOffsetMs": 2512.5,
+      "visemeId": 16
+    },
+    {
+      "audioOffsetMs": 2543.75,
+      "visemeId": 6
+    },
+    {
+      "audioOffsetMs": 2575,
+      "visemeId": 6
+    },
+    {
+      "audioOffsetMs": 2612.5,
+      "visemeId": 6
+    },
+    {
+      "audioOffsetMs": 2650,
+      "visemeId": 19
+    },
+    {
+      "audioOffsetMs": 2700,
+      "visemeId": 15
+    },
+    {
+      "audioOffsetMs": 2750,
+      "visemeId": 2
+    },
+    {
+      "audioOffsetMs": 2812.5,
+      "visemeId": 20
+    },
+    {
+      "audioOffsetMs": 2912.5,
+      "visemeId": 20
+    },
+    {
+      "audioOffsetMs": 2962.5,
+      "visemeId": 1
+    },
+    {
+      "audioOffsetMs": 3050,
+      "visemeId": 1
+    },
+    {
+      "audioOffsetMs": 3212,
+      "visemeId": 0
+    }
+  ],
+  "audioDurationMs": 3750,
+  "summary": {
+    "totalEvents": 58,
+    "distinctVisemeIds": [
+      0,
+      1,
+      2,
+      6,
+      7,
+      8,
+      12,
+      15,
+      16,
+      19,
+      20,
+      21
+    ],
+    "firstOffsetMs": 50,
+    "lastOffsetMs": 3212,
+    "audioDurationMs": 3750,
+    "trailingGapMs": 538,
+    "coveragePct": 85.65333333333334,
+    "verdict": "PASS",
+    "verdictReason": "58 events across 85.7% of audio. 12 distinct viseme IDs. zh-CN viseme is usable for lip-sync."
+  }
+}
