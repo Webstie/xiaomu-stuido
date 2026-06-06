@@ -46,7 +46,8 @@ export async function fetchAudioLibrary(): Promise<AudioFileEntry[]> {
 
 export type ClassifySchema =
   | 'yesno' | 'mood' | 'goodbye' | 'activity-intent'
-  | 'task-completed' | 'sound-match' | 'quit-activity';
+  | 'task-completed' | 'sound-match' | 'quit-activity'
+  | 'assistant-distress';
 
 export async function classifyIntent(
   text: string,

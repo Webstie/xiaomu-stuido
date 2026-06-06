@@ -256,6 +256,20 @@ export const ConversationFlowSchema = z.object({
   sessionClosingScript: z.string(),
   transitionPhrases: z.array(z.string()),
   maxTurnsBeforeBreak: z.number().int().positive(),
+  // Scripted intro phrases — spoken verbatim by TestChat during the
+  // pre-LLM intro flow. Editable in the Conversation Flow panel.
+  firstMeetingQuestion: z.string().optional(),
+  startChattingIntro: z.string().optional(),
+  agePrompt: z.string().optional(),
+  storyAgePrompt: z.string().optional(),
+  shortWeatherPrompt: z.string().optional(),
+  oldFriendIntroPrefix: z.string().optional(),
+  weatherPrompt: z.string().optional(),
+  returningSessionIntros: z.array(z.string()).optional(),
+  // After maxTurnsBeforeBreak real user turns (activities/games count as 1),
+  // TestChat injects one of these as a gentle break suggestion. Child can keep
+  // going — flow resumes naturally on the next turn.
+  breakSuggestionPhrases: z.array(z.string()).optional(),
 });
 
 export type ConversationFlow = z.infer<typeof ConversationFlowSchema>;
@@ -266,6 +280,24 @@ export const SafetySchema = z.object({
   avoidTopics: z.array(z.string()),
   hardProhibitions: z.array(z.string()),
   distressKeywords: z.array(z.string()),
+  /**
+   * Spoken verbatim when the runtime detects a distress keyword in the
+   * child's message. The detection short-circuits the scripted flow, the
+   * active activity, and the LLM call so the response is deterministic and
+   * never leaks distress text to the cloud model (which would also trip
+   * Azure OpenAI's content-policy filter).
+   */
+  distressResponseScript: z.string().optional(),
+  /** Operator-facing note shown in the studio after a distress event. */
+  distressCaregiverNote: z.string().optional(),
+  /**
+   * Substrings that, if present in an assistant reply, indicate the MODEL
+   * itself recognized distress and is trying to handle it (e.g. routing to
+   * a trusted adult, a nurse, or a doctor). When matched the runtime flips
+   * the same caregiver banner as a local keyword hit and ends the session.
+   * This catches inputs the keyword list missed.
+   */
+  assistantDistressMarkers: z.array(z.string()).optional(),
 });
 
 export type Safety = z.infer<typeof SafetySchema>;

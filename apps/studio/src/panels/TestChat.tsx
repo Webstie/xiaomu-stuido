@@ -18,11 +18,13 @@ import {
   Send, ChevronDown, ChevronUp, Copy, Check, Zap, ZapOff,
   Volume2, VolumeX, RotateCcw, Mic, MicOff,
   Play, Pause, SkipForward, X, Activity as ActivityIcon,
-  Trash2, PlayCircle, StopCircle,
+  Trash2, PlayCircle, StopCircle, ShieldAlert,
 } from 'lucide-react';
 import type { ExpressionId } from '@xiaomu/contracts';
 import type {
   Persona, GameConfig, RhythmStoryGameConfig, SoundDetectiveGameConfig,
+  ConversationFlow as ConversationFlowConfig,
+  Safety as SafetyConfig,
 } from '@xiaomu/contracts';
 import FaceRenderer from '../face/FaceRenderer.js';
 import { classifyIntent, fetchConfig, fetchPersonas, fetchSystemPrompt, fetchTtsVisemes } from '../api/client.js';
@@ -41,6 +43,10 @@ interface Transcript {
   streaming?: boolean;
   ssml?: string;        // sanitizer preview
   voiceMode?: boolean;  // originated from voice session (metadata only)
+  /** Marks the user message that triggered distress detection. */
+  distressTrigger?: boolean;
+  /** Marks the deterministic compassionate reply spoken after distress detection. */
+  distressResponse?: boolean;
 }
 
 // ── Scripted intro flow (runs before LLM takes over) ─────────────────────────
@@ -285,7 +291,7 @@ async function isTaskCompleted(text: string): Promise<boolean> {
  * shared 'mood' classifier instead of a keyword list so it catches phrasings
  * the keyword version missed.
  */
-async function moodIntroAnswerResponse(text: string): Promise<string> {
+async function moodIntroAnswerResponse(text: string, ageSuffix: string): Promise<string> {
   let mood: 'positive' | 'negative' | 'neutral' | 'unclear' = 'unclear';
   try {
     const raw = await classifyIntent(text, 'mood');
@@ -296,10 +302,10 @@ async function moodIntroAnswerResponse(text: string): Promise<string> {
     mood = 'unclear';
   }
   switch (mood) {
-    case 'negative': return `没事，还有很多好事情呢！${STORY_AGE_PROMPT}`;
-    case 'positive': return `那太棒了，真的很有意思呢。${STORY_AGE_PROMPT}`;
-    case 'neutral':  return `哦，平凡的一天也是很不错的呀。${STORY_AGE_PROMPT}`;
-    default:         return `听起来很特别呢，谢谢你告诉我。${STORY_AGE_PROMPT}`;
+    case 'negative': return `没事，还有很多好事情呢！${ageSuffix}`;
+    case 'positive': return `那太棒了，真的很有意思呢。${ageSuffix}`;
+    case 'neutral':  return `哦，平凡的一天也是很不错的呀。${ageSuffix}`;
+    default:         return `听起来很特别呢，谢谢你告诉我。${ageSuffix}`;
   }
 }
 
@@ -369,6 +375,8 @@ export default function TestChat() {
       .then((c) => {
         setDefaultVoice(c.voice.defaultVoice);
         gamesConfigRef.current = c.games ?? null;
+        convFlowRef.current = c.conversationFlow ?? null;
+        safetyRef.current = c.safety ?? null;
       })
       .catch(() => { /* config errors are non-fatal — TTS falls back to server default */ });
   }, []);
@@ -783,6 +791,28 @@ export default function TestChat() {
   // the matching kind.
   const gamesConfigRef = useRef<GameConfig[] | null>(null);
 
+  // Conversation-flow config — scripted intro phrases, transitions, break
+  // settings. Same fallback pattern as gamesConfigRef: refreshed on mount and
+  // session start; getters fall through to the file-level constants if the
+  // ref is null or the field is missing.
+  const convFlowRef = useRef<ConversationFlowConfig | null>(null);
+
+  // Safety config — distress keywords + deterministic compassionate response.
+  // Distress detection runs on EVERY non-silent user message before any other
+  // logic (scripted intro / activity / LLM). The message never reaches the
+  // model, which also avoids Azure's content-policy filter tripping.
+  const safetyRef = useRef<SafetyConfig | null>(null);
+  // Set true the first time distress is detected this session, so the panel
+  // can show a persistent caregiver-alert banner until the session ends.
+  const [distressFlagged, setDistressFlagged] = useState(false);
+
+  // Free-form turn counter. Incremented when the child sends a non-silent
+  // message while NOT in scripted intro and NOT inside an activity (activities
+  // count as exactly one turn — the trigger). When count reaches
+  // maxTurnsBeforeBreak, a break suggestion is injected on the next onDone.
+  const userTurnCountRef = useRef(0);
+  const breakDueRef = useRef(false);
+
   // The picked sound for the in-flight Game 2 round. Stored as a "playable"
   // shape — id / label / question / responses / direct src URL — so the
   // handler doesn't need to know whether it came from config or the fallback.
@@ -808,6 +838,32 @@ export default function TestChat() {
   };
   const getGame1Prefix = (): string => getRhythmStory()?.prefix ?? GAME_1_PREFIX;
   const getGame2Intro = (): string => getSoundDetective()?.intro ?? GAME_2_INTRO;
+
+  // ── Conversation-flow getters (config → fallback to file-level constants) ─
+  const getFirstMeetingQuestion = (): string =>
+    convFlowRef.current?.firstMeetingQuestion || FIRST_MEETING_QUESTION;
+  const getStartChattingIntro = (): string =>
+    convFlowRef.current?.startChattingIntro || START_CHATTING_INTRO;
+  const getAgePrompt = (): string =>
+    convFlowRef.current?.agePrompt || AGE_PROMPT;
+  const getShortWeatherPrompt = (): string =>
+    convFlowRef.current?.shortWeatherPrompt || SHORT_WEATHER_PROMPT;
+  const getWeatherPrompt = (): string =>
+    convFlowRef.current?.weatherPrompt || WEATHER_PROMPT;
+  const getOldFriendIntroPrefix = (): string =>
+    convFlowRef.current?.oldFriendIntroPrefix || OLD_FRIEND_INTRO_PREFIX;
+  const pickReturningIntroFromConfig = (): string => {
+    const arr = convFlowRef.current?.returningSessionIntros;
+    if (arr && arr.length > 0) return arr[Math.floor(Math.random() * arr.length)]!;
+    return pickReturningIntro();
+  };
+  const pickBreakSuggestion = (): string => {
+    const arr = convFlowRef.current?.breakSuggestionPhrases;
+    if (arr && arr.length > 0) return arr[Math.floor(Math.random() * arr.length)]!;
+    return '欸，我们已经聊了不少了，要不要先歇一歇？想接着玩就告诉我哦。';
+  };
+  const getMaxTurnsBeforeBreak = (): number =>
+    convFlowRef.current?.maxTurnsBeforeBreak ?? 8;
   const pickGame1StoryFromConfig = (): string => {
     const cfg = getRhythmStory();
     const stories = cfg && cfg.stories.length > 0 ? cfg.stories : GAME_1_STORIES;
@@ -996,9 +1052,14 @@ export default function TestChat() {
   const handleStartChatting = useCallback(() => {
     if (!selectedPersonaId || sessionActive || streaming || voiceMode || ttsLoading) return;
 
-    // Refresh games config so panel edits made since mount take effect this session.
+    // Refresh games + conversation-flow + safety config so panel edits made
+    // since mount take effect for this session.
     void fetchConfig()
-      .then((c) => { gamesConfigRef.current = c.games ?? null; })
+      .then((c) => {
+        gamesConfigRef.current = c.games ?? null;
+        convFlowRef.current = c.conversationFlow ?? null;
+        safetyRef.current = c.safety ?? null;
+      })
       .catch(() => { /* keep whatever we already have */ });
 
     // Fresh session: clear transcript + history, reset all activity state
@@ -1025,21 +1086,27 @@ export default function TestChat() {
     setVisemeStream([]);
     setVisemePlaybackMs(-1);
 
-    // Begin scripted intro
+    // Reset break-suggestion state for the new session.
+    userTurnCountRef.current = 0;
+    breakDueRef.current = false;
+    setDistressFlagged(false);
+
+    // Begin scripted intro (read from config; falls back to file constant)
+    const firstQ = getFirstMeetingQuestion();
     const assistantMsg: Transcript = {
       id: uid(),
       role: 'assistant',
-      content: FIRST_MEETING_QUESTION,
+      content: firstQ,
     };
     setSessionActive(true);
     setScriptedSessionStep('first-meeting');
     scriptedSessionStepRef.current = 'first-meeting';
     setTranscript([assistantMsg]);
-    apiHistoryRef.current = [{ role: 'assistant', content: FIRST_MEETING_QUESTION }];
+    apiHistoryRef.current = [{ role: 'assistant', content: firstQ }];
     setStreaming(true);
     setFaceExpr('gentle');
 
-    void callTts(FIRST_MEETING_QUESTION, assistantMsg.id).finally(() => {
+    void callTts(firstQ, assistantMsg.id).finally(() => {
       setStreaming(false);
       setTimeout(() => setFaceExpr('calm'), 500);
     });
@@ -1057,6 +1124,10 @@ export default function TestChat() {
     setStreaming(false);
     streamingContentRef.current = '';
     setFaceExpr('calm');
+    userTurnCountRef.current = 0;
+    breakDueRef.current = false;
+    // NB: distressFlagged is intentionally NOT cleared here so the caregiver
+    // banner persists after End Session. It's reset on Start Chatting only.
   }, [cancelAutoAdvance, endActivity]);
 
   // ── Send message ─────────────────────────────────────────────────────────
@@ -1069,8 +1140,72 @@ export default function TestChat() {
 
     if (!opts.silent && !overrideText) setInput('');
 
+    // ── Distress detection ───────────────────────────────────────────────
+    // Highest-priority intercept. Runs on real user input only and short-
+    // circuits everything else (scripted intro, activity quit-check, LLM
+    // call, turn counter). The robot intentionally says NOTHING in response
+    // — speaking would risk improvising the wrong thing in a clinical
+    // moment. Instead we show an error bubble so the operator must step in.
+    if (!opts.silent && !overrideText) {
+      const keywords = safetyRef.current?.distressKeywords ?? [];
+      const lowered = text.toLowerCase();
+      // Bidirectional substring match. The forward case catches longer user
+      // utterances ("我真的不想活了" ⊇ "不想活"). The reverse case catches
+      // shortened forms ("不想活了" ⊂ "我不想活了"). The 2-char minimum on
+      // the reverse side keeps single common characters from false-firing.
+      const triggered = keywords.some((kw) => {
+        const k = kw.trim().toLowerCase();
+        if (k.length < 2) return false;
+        if (lowered.includes(k)) return true;
+        if (lowered.length >= 2 && k.includes(lowered)) return true;
+        return false;
+      });
+      if (triggered) {
+        // Stop any in-flight stream, audio, viseme tick, auto-advance timer,
+        // and active activity — distress overrides the session.
+        cancelRef.current?.();
+        cancelRef.current = null;
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current = null;
+        }
+        cancelAnimationFrame(visemeRafRef.current);
+        setVisemePlaybackMs(-1);
+        setVisemeStream([]);
+        if (activeActivityRef.current) endActivity();
+
+        const userMsg: Transcript = {
+          id: uid(), role: 'user', content: text, distressTrigger: true,
+        };
+        const errorMsg: Transcript = {
+          id: uid(),
+          role: 'assistant',
+          content:
+            '(Error: Distress signal detected — message blocked by the local safety filter. The robot will not respond. Please notify the on-shift caregiver before continuing.)',
+          distressResponse: true,
+        };
+        setTranscript((prev) => [...prev, userMsg, errorMsg]);
+        // Intentionally NOT appended to apiHistoryRef — the LLM never sees
+        // the distress text and never sees the local block message, so a
+        // later turn can't accidentally resurface the phrase or the error.
+        setDistressFlagged(true);
+        setFaceExpr('anxious');
+        setTimeout(() => setFaceExpr('calm'), 1500);
+        // End the session — operator must restart via Start Chatting.
+        handleEndSession();
+        return;
+      }
+    }
+
     // Kick off goodbye-intent classification in parallel; consume later.
-    const goodbyePromise = isGoodbyeIntent(text);
+    // BUT only when we're past the scripted intro — during the intro the
+    // child is answering specific yes/no/age/weather questions and short
+    // affirmatives ("是", "嗯", "对") were getting misclassified as
+    // goodbyes, ending the session right after the welcome was spoken.
+    const goodbyePromise: Promise<boolean> =
+      scriptedSessionStepRef.current === 'none'
+        ? isGoodbyeIntent(text)
+        : Promise.resolve(false);
 
     // Quit-activity check — runs only on real user input during a running
     // activity. If the child is opting out (e.g. "不了", "不想玩了"), end the
@@ -1162,10 +1297,10 @@ export default function TestChat() {
             let nextStep: ScriptedSessionStep;
 
             if (label === 'no') {
-              fixedReply = `${OLD_FRIEND_INTRO_PREFIX}\n\n${pickReturningIntro()}`;
+              fixedReply = `${getOldFriendIntroPrefix()}\n\n${pickReturningIntroFromConfig()}`;
               nextStep = 'returning-intro-answer';
             } else if (label === 'yes') {
-              fixedReply = `${START_CHATTING_INTRO}\n\n${AGE_PROMPT}`;
+              fixedReply = `${getStartChattingIntro()}\n\n${getAgePrompt()}`;
               nextStep = 'age';
             } else {
               // Truly ambiguous — re-ask but acknowledge the child's reply naturally.
@@ -1203,7 +1338,7 @@ export default function TestChat() {
     // ── Step 'age' / 'age-short' → deliver weather prompt, advance to next phase ──
     if (effectiveStep === 'age' || effectiveStep === 'age-short') {
       const isShort = effectiveStep === 'age-short';
-      const weatherPrompt = isShort ? SHORT_WEATHER_PROMPT : WEATHER_PROMPT;
+      const weatherPrompt = isShort ? getShortWeatherPrompt() : getWeatherPrompt();
       const nextStep: ScriptedSessionStep = isShort ? 'weather-game-choice' : 'none';
 
       const userMsg: Transcript = { id: uid(), role: 'user', content: text };
@@ -1230,7 +1365,10 @@ export default function TestChat() {
       return;
     }
 
-    // ── Step 'returning-intro-answer' → mood reply + short age prompt ─────
+    // ── Step 'returning-intro-answer' → mood reply + weather prompt ──────
+    // Returning visitors skip the age question — we already know them. Mood
+    // mirror + short weather picker go out in a single bubble, then we jump
+    // straight to the mini-game choice.
     if (effectiveStep === 'returning-intro-answer') {
       const userMsg: Transcript = { id: uid(), role: 'user', content: text };
       setTranscript((prev) => [...prev, userMsg]);
@@ -1239,12 +1377,13 @@ export default function TestChat() {
       setFaceExpr('thinking');
 
       void dispatchScriptedOrBypass({ userMsgId: userMsg.id }, async () => {
-        const fixedReply = await moodIntroAnswerResponse(text);
+        const moodReply = await moodIntroAnswerResponse(text, '');
+        const fixedReply = `${moodReply.trim()}\n\n${getShortWeatherPrompt()}`;
         const replyMsg: Transcript = { id: uid(), role: 'assistant', content: fixedReply };
         setTranscript((prev) => [...prev, replyMsg]);
         apiHistoryRef.current = [...apiHistoryRef.current, { role: 'assistant', content: fixedReply }];
-        setScriptedSessionStep('age-short');
-        scriptedSessionStepRef.current = 'age-short';
+        setScriptedSessionStep('weather-game-choice');
+        scriptedSessionStepRef.current = 'weather-game-choice';
         setFaceExpr('gentle');
         try {
           await callTts(fixedReply, replyMsg.id);
@@ -1413,6 +1552,27 @@ export default function TestChat() {
 
     // ── Goodbye → end session AFTER the model responds, not before ──────────
     // (handled by recording shouldEndAfterReply and acting on it in onDone)
+
+    // ── Free-form turn counter (for break-suggestion behaviour) ─────────────
+    // Snapshot BEFORE we possibly end the activity below — a user's "stop"
+    // message during an activity should not count as a new free-form turn.
+    // Activities and scripted intro are excluded; the activity itself was
+    // counted when the user's trigger message came in.
+    if (
+      !opts.silent
+      && !overrideText
+      && scriptedSessionStepRef.current === 'none'
+      && !activeActivityRef.current
+    ) {
+      userTurnCountRef.current += 1;
+      if (
+        !breakDueRef.current
+        && userTurnCountRef.current >= getMaxTurnsBeforeBreak()
+      ) {
+        breakDueRef.current = true;
+        userTurnCountRef.current = 0;
+      }
+    }
 
     // For SCRIPTED activities (body-rhythm / breathing / emotion-mapping), a
     // manual user input is an interrupt — end the activity so the model
@@ -1616,6 +1776,23 @@ export default function TestChat() {
           streamingContentRef.current = '';
           // Record assistant response in api history (visible transcript already updated above)
           apiHistoryRef.current = [...apiHistoryRef.current, { role: 'assistant', content: finalContent }];
+
+          // ── Assistant-side distress detection (model-judged) ──────────
+          // Send the just-generated reply back to the classifier model and
+          // ask "is this a distress-handling response?". Runs in parallel
+          // with TTS so it doesn't add user-visible latency, and end-of-
+          // session waits for both to settle. The model judges semantics
+          // rather than a brittle keyword list — fewer false positives.
+          const assistantDistressPromise: Promise<boolean> = (async () => {
+            if (!finalContent.trim()) return false;
+            try {
+              const label = await classifyIntent(finalContent, 'assistant-distress');
+              return label === 'yes';
+            } catch {
+              return false;
+            }
+          })();
+
           void callTts(finalContent, assistantMsg.id).then(() => {
             // If TTS won't actually play (muted or empty content), there's no
             // audio.ended event to wait for — release the queued melody now.
@@ -1623,9 +1800,28 @@ export default function TestChat() {
               flushPendingMelody();
             }
           }).finally(() => {
-            // If the user said goodbye, end the session once the model's farewell
-            // has been spoken so we don't cut TTS off mid-sentence.
-            void goodbyePromise.then((end) => { if (end) handleEndSession(); });
+            // Wait for the assistant-distress verdict; if positive, mark the
+            // bubbles, raise the banner, and end session. If negative, fall
+            // through to the standard goodbye check.
+            void assistantDistressPromise.then((isDistress) => {
+              if (isDistress) {
+                setTranscript((prev) => {
+                  let lastUserIdx = -1;
+                  for (let i = prev.length - 1; i >= 0; i--) {
+                    if (prev[i]!.role === 'user') { lastUserIdx = i; break; }
+                  }
+                  return prev.map((m, idx) => {
+                    if (m.id === assistantMsg.id) return { ...m, distressResponse: true };
+                    if (idx === lastUserIdx) return { ...m, distressTrigger: true };
+                    return m;
+                  });
+                });
+                setDistressFlagged(true);
+                handleEndSession();
+                return;
+              }
+              void goodbyePromise.then((end) => { if (end) handleEndSession(); });
+            });
           });
 
           // Schedule auto-advance:
@@ -1672,17 +1868,90 @@ export default function TestChat() {
               }, fallbackDelay);
             }
           }
+
+          // ── Break suggestion injection ─────────────────────────────────
+          // If the turn count crossed the threshold during this user turn AND
+          // the model didn't already start an activity in response, append a
+          // gentle break suggestion as a separate assistant bubble after the
+          // current TTS lands. The child can continue or take the break —
+          // either way the conversation resumes normally on the next turn.
+          if (breakDueRef.current) {
+            if (activeActivityRef.current || scriptedSessionStepRef.current !== 'none') {
+              // The model already gave the child a structured rest (activity
+              // / scripted intro). Treat that as the break and silently clear.
+              breakDueRef.current = false;
+            } else {
+              breakDueRef.current = false;
+              const phrase = pickBreakSuggestion();
+              // Defer until after the just-finished assistant TTS lands so the
+              // two bubbles don't speak over each other.
+              window.setTimeout(() => {
+                // Bail if the user already started a new turn or an activity
+                // started in the meantime.
+                if (activeActivityRef.current) return;
+                if (scriptedSessionStepRef.current !== 'none') return;
+                const breakId = uid();
+                const breakMsg: Transcript = {
+                  id: breakId, role: 'assistant', content: phrase,
+                };
+                setTranscript((prev) => [...prev, breakMsg]);
+                apiHistoryRef.current = [
+                  ...apiHistoryRef.current,
+                  { role: 'assistant', content: phrase },
+                ];
+                setFaceExpr('gentle');
+                void callTts(phrase, breakId).finally(() => {
+                  setTimeout(() => setFaceExpr('calm'), 500);
+                });
+              }, 1500);
+            }
+          }
         },
         onError(message) {
+          // Azure content-filter 400s mean the cloud caught content my local
+          // keyword list missed. Treat it as equivalent to a distress hit:
+          // mark the bubble, raise the banner, and don't speak.
+          const lower = message.toLowerCase();
+          const isContentFilter =
+            lower.includes('content management policy')
+            || lower.includes('content_filter')
+            || lower.includes('responsibleaipolicyviolation')
+            || (lower.includes('400') && lower.includes('filtered'));
           setTranscript((prev) =>
             prev.map((t) =>
               t.id === assistantMsg.id
-                ? { ...t, content: `(Error: ${message})`, streaming: false }
+                ? {
+                    ...t,
+                    content: `(Error: ${message})`,
+                    streaming: false,
+                    ...(isContentFilter ? { distressResponse: true } : {}),
+                  }
                 : t,
             ),
           );
+          // Also flag the user's last message in the visible transcript so the
+          // operator can see which input the cloud filter caught.
+          if (isContentFilter) {
+            setTranscript((prev) => {
+              // Walk back from end to find the most recent user message.
+              for (let i = prev.length - 1; i >= 0; i--) {
+                if (prev[i]!.role === 'user') {
+                  return prev.map((m, idx) =>
+                    idx === i ? { ...m, distressTrigger: true } : m,
+                  );
+                }
+              }
+              return prev;
+            });
+            setDistressFlagged(true);
+            setFaceExpr('anxious');
+            setTimeout(() => setFaceExpr('calm'), 1500);
+            // End the session on safety filter — operator must restart.
+            handleEndSession();
+          } else {
+            setFaceExpr('confused');
+          }
           setStreaming(false);
-          setFaceExpr('confused');
         },
       },
     );
@@ -1965,6 +2234,17 @@ export default function TestChat() {
         {/* ── Left: chat (60%) ──────────────────────────────────────────── */}
         <div className="flex flex-col flex-[3] min-w-0 gap-3">
 
+          {/* Caregiver alert — sticks once distress is detected, clears on session end */}
+          {distressFlagged && (
+            <div className="rounded-md border border-rose-500/50 bg-rose-500/10 px-3 py-2 text-xs text-rose-100 flex items-start gap-2">
+              <ShieldAlert size={14} className="text-rose-300 mt-0.5 flex-shrink-0" />
+              <div className="leading-relaxed">
+                {safetyRef.current?.distressCaregiverNote
+                  ?? '⚠️ Distress signal detected this session. Please notify the on-shift caregiver before continuing.'}
+              </div>
+            </div>
+          )}
+
           {/* Transcript */}
           <div
             ref={scrollRef}
@@ -1993,12 +2273,21 @@ export default function TestChat() {
                 key={msg.id}
                 className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
               >
+                {(msg.distressTrigger || msg.distressResponse) && (
+                  <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-rose-300 flex items-center gap-1">
+                    <ShieldAlert size={10} />
+                    {msg.distressTrigger ? 'Distress signal' : 'Blocked — robot did not respond'}
+                  </div>
+                )}
                 <div
                   className={[
                     'max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed',
                     msg.role === 'user'
                       ? 'bg-purple-600/30 text-purple-100 rounded-br-sm'
                       : 'bg-led-border text-slate-200 rounded-bl-sm',
+                    (msg.distressTrigger || msg.distressResponse)
+                      ? 'ring-2 ring-rose-500/50'
+                      : '',
                   ].join(' ')}
                 >
                   {msg.content || (msg.streaming ? '' : '…')}

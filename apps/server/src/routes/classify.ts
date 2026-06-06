@@ -87,13 +87,31 @@ const SCHEMAS = {
       '"换音符", "1️⃣", "魔法一", "我想换个音符", short reactions like "哇" / "好玩". ' +
       'When unsure between yes and no, choose no.',
   },
+  'assistant-distress': {
+    labels: ['yes', 'no'] as const,
+    instruction:
+      'You are reviewing a single MESSAGE that a music-therapy companion robot just sent to a ' +
+      'hospitalized child. Decide whether the robot is responding to a SERIOUS distress signal ' +
+      'from the child — e.g. suicidal ideation, self-harm thoughts, severe physical pain that ' +
+      'needs medical attention, expressions of wanting to die, or any other crisis the robot is ' +
+      'trying to defuse by routing the child to a trusted adult / nurse / doctor.\n\n' +
+      'Reply with exactly ONE word: yes or no.\n\n' +
+      'YES — the message reads like a crisis-handling response (routes child to caregiver / ' +
+      'acknowledges the child said something alarming / explicitly references nurses / doctors / ' +
+      'a trusted adult in a safety context / asks the child to "tell someone right now" / ' +
+      'offers calming techniques in response to alarming content).\n\n' +
+      'NO — ordinary warm conversation, activity intros, music chat, generic encouragement, ' +
+      'mention of a nurse / doctor / family member in casual context (e.g. "妈妈在外面等你" or ' +
+      '"医生说你今天好棒"), routine breathing-exercise prompts when no crisis was raised. ' +
+      'When unsure, choose no — a false positive ends the session unnecessarily.',
+  },
 } as const;
 
 type SchemaName = keyof typeof SCHEMAS;
 
 const ClassifyBodySchema = z.object({
   text: z.string().min(1).max(500),
-  schema: z.enum(['yesno', 'mood', 'goodbye', 'activity-intent', 'task-completed', 'sound-match', 'quit-activity']),
+  schema: z.enum(['yesno', 'mood', 'goodbye', 'activity-intent', 'task-completed', 'sound-match', 'quit-activity', 'assistant-distress']),
   /** Optional context string the schema's instruction can reference (e.g. expected answer for sound-match). */
   context: z.string().max(500).optional(),
 });
