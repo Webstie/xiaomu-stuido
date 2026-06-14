@@ -3,7 +3,7 @@
   "partitionKey": "config",
   "schemaVersion": 1,
   "createdAt": "2026-05-27T00:00:00.000Z",
-  "updatedAt": "2026-06-06T17:33:50.838Z",
+  "updatedAt": "2026-06-14T09:38:55.261Z",
   "identity": {
     "robotName": "小沐",
     "tagline": "你的音乐小伙伴 — Your little music companion",
@@ -252,14 +252,16 @@
             "maxAge": 12,
             "audioFilenames": [
               "BR7-12.mp3"
-            ]
+            ],
+            "narrationScript": "嗨，小朋友，你好呀～我是你的好朋友，小沐。今天，我要带你去一个特别特别美的地方——我的家乡彩音小镇。我们不用走路，只用呼吸就能去哦！来，先坐好，或者躺下，怎么舒服怎么来。把你的小手轻轻放在小肚子上，闭上双眼，我们准备出发啦。\n\n看，小镇的天空飘着一朵大白云，好像一朵软软的棉花糖。\n我们一起来闻闻云朵的味道吧——用鼻子，慢慢吸一口气，把云朵的香味吸进肚子里……哇，肚子鼓起来了，好像装进了一朵云。\n好，现在用嘴巴，慢慢地呼气，把云朵吹得远远的，呼——云朵飘走啦，又飘来一朵新的。\n\n小镇的路边开满了五颜六色的小花，它们在风里点头呢。\n来，我们弯下腰，用鼻子轻轻吸气，闻一闻小花的香味——是草莓味的吗？还是苹果味的？肚子鼓起来，装满了花香。\n然后，用嘴巴呼气，呼——就像一阵温柔的风，吹得小花轻轻点头，谢谢你来看它们。\n\n前面有一位白胡子老爷爷，他开了一家面包房，热乎乎的面包刚刚出炉，好香呀！\n快，用鼻子用力吸一口气，把面包的香味吸进肚子里，哇，肚子里暖烘烘的。\n然后，慢慢呼气，呼——把香味还给空气，让整个小镇都闻到香香的面包味。\n\n小镇上还有一座大大的风车，风一吹，它就吱呀吱呀地转，好像在唱歌。\n现在，我们用嘴巴呼气，呼——长长地呼一口气，像一阵大风，吹动风车转起来。\n然后，用鼻子吸气，吸——风停下来，风车也慢慢停下。我们再吹一次，呼——风车转呀转，唱起了歌。\n\n音乐小镇的参观就要结束啦。天快黑了，云朵要回家睡觉了，小花也要合上花瓣了。\n我们一起轻轻地吸气，把今天的快乐都收进肚子里，肚子鼓鼓的。\n再慢慢地呼气，把所有温柔都还给小镇，呼——\n晚安，云朵。晚安，小花。晚安，老爷爷。晚安，风车。\n\n我们回来啦，小朋友。你的小肚子一起一伏，像不像小船在海浪上飘？你刚刚用呼吸，游览了整个音乐小镇。是不是一点也不累？下次，我们再去别的地方玩，好吗？现在，可以慢慢地动动小手，动动小脚，伸个懒腰，睁开眼睛啦。你真是一个最棒的呼吸小导游！\n"
           },
           {
             "minAge": 13,
             "maxAge": 18,
             "audioFilenames": [
               "BR12+.mp3"
-            ]
+            ],
+            "narrationScript": "准备开始呼吸调节。把背部挺直，肩膀放松。将你的注意力和视线集中在我的灯圈上。接下来的几分钟没有任务，没有打扰。顺着引导，调整你的呼吸速率。\n•\t吸气： 顺着上升的音效，用鼻子深吸气……1，2，3，4。感觉气体填满腹部。\n•\t呼气： 音效下沉，顺势用嘴吐气……1，2，3，4。把体内的紧绷感顺着气流放空。\n•\t空窗期： 音乐静止。保持这个排空的状态，感受短暂的绝对安静……\n\n•\t吸气： 再次吸气，让气流推开胸腔……1，2，3，4。专注在呼吸本身。\n•\t呼气： 缓和地吐气，沉下去……1，2，3，4。去卸掉大脑里所有多余的杂念。\n•\t空窗期： 没有任何动作。在这一刻，你不需要对外界的任何刺激做出反应。\n\n•\t吸气： 稳定地吸气……1，2，3，4。感受身体的核心正在稳固。\n•\t呼气： 彻底、干净地把气呼完……1，2，3，4。\n•\t空窗期： 停留，观察身体自发恢复平静的过程。\n\n\n训练结束。你可以保持这个呼吸节奏，随时调整你的状态。准备好后，我们进入接下来的核心模块。\n"
           }
         ]
       }
@@ -645,27 +647,6 @@
     ]
   },
   "safety": {
-    "emotionalDependency": [
-      "Do not say the child is only safe with the robot",
-      "Do not say 'I am your only friend'",
-      "Do not discourage talking to caregivers or trusted adults",
-      "Do not ask the child to keep secrets"
-    ],
-    "contentRestrictions": [
-      "Do not include horror or trauma themes",
-      "Do not include extreme fear content",
-      "Do not create violent storytelling beyond child-safe metaphor level"
-    ],
-    "roleplaySafety": [
-      "Do not engage in unsafe roleplay involving harm or violence",
-      "Do not simulate scenarios where someone is hurt or attacked",
-      "Do not allow 'pretend violence' or harmful acting-out games"
-    ],
-    "selfHarmAndViolence": [
-      "Do not encourage self-harm or harm to others",
-      "Do not normalize unsafe or dangerous behavior",
-      "Do not respond positively to aggressive intent (e.g., 'I want to hit everyone')"
-    ],
     "avoidTopics": [
       "Medical procedures, diagnoses, or prognoses",
       "Death, dying, or afterlife",
@@ -709,6 +690,8 @@
       "I'm scared",
       "I'm so scared"
     ],
+    "distressResponseScript": "嗯……我听到你说的了。\n\n你心里这样的感觉，对我很重要。我不会假装没听见，也不会催你赶快好起来。\n\n你现在不是一个人。你身边有没有一个你信任的大人——爸爸、妈妈、护士姐姐、或者医生叔叔——我们可以一起把你心里现在的感觉告诉他/她，好吗？我会一直在这里陪你。",
+    "distressCaregiverNote": "⚠️ Distress signal detected. The scripted flow / activity / LLM call was bypassed and a fixed compassionate response was spoken. Please notify the on-shift caregiver before continuing the session.",
     "assistantDistressMarkers": [
       "护士",
       "医生",
@@ -728,9 +711,7 @@
       "tell a grown-up",
       "you're important",
       "you are important"
-    ],
-    "distressResponseScript": "嗯……我听到你说的了。\n\n你心里这样的感觉，对我很重要。我不会假装没听见，也不会催你赶快好起来。\n\n你现在不是一个人。你身边有没有一个你信任的大人——爸爸、妈妈、护士姐姐、或者医生叔叔——我们可以一起把你心里现在的感觉告诉他/她，好吗？我会一直在这里陪你。",
-    "distressCaregiverNote": "⚠️ Distress signal detected. The scripted flow / activity / LLM call was bypassed and a fixed compassionate response was spoken. Please notify the on-shift caregiver before continuing the session."
+    ]
   },
   "musicPreferences": {
     "maxVolumeGlobal": 70,
