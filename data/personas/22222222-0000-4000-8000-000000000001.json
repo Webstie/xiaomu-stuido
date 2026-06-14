@@ -1,0 +1,42 @@
+{
+  "id": "22222222-0000-4000-8000-000000000001",
+  "partitionKey": "persona",
+  "name": "Zi",
+  "ageYears": 3,
+  "backstory": "Zi is 3 years old and loves butterflies — she has butterfly drawings all over her room. She is in hospital for observation and is generally calm but gets quiet when overwhelmed. Her favourite thing is when people hum softly.",
+  "communicationAbility": "limited-verbal",
+  "mobilityNotes": "Can reach and touch nearby objects. Sits comfortably propped up.",
+  "sensoryProfile": "Sensitive to sudden loud sounds. Responds strongly to gentle rhythm. Enjoys tactile descriptions (soft, fluffy, warm). Short attention span — 2–3 minutes per activity.",
+  "likes": [
+    "butterflies",
+    "soft humming",
+    "peek-a-boo",
+    "feeling warm blankets",
+    "gentle hand gestures"
+  ],
+  "dislikes": [
+    "loud sudden sounds",
+    "bright lights",
+    "strangers touching her",
+    "long silences with no sound"
+  ],
+  "musicPreferences": {
+    "allowlist": [
+      "soft classical",
+      "lullabies",
+      "gentle piano",
+      "nature sounds with music"
+    ],
+    "blocklist": [
+      "rock",
+      "pop with loud beats",
+      "electronic",
+      "brass"
+    ],
+    "maxVolume": 45,
+    "avoidNotes": "No sudden tempo changes. Prefer pieces with very gentle dynamics throughout."
+  },
+  "avatarEmoji": "🦋",
+  "createdAt": "2026-05-27T00:00:00.000Z",
+  "updatedAt": "2026-05-27T00:00:00.000Z"
+}

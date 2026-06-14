@@ -1,0 +1,41 @@
+{
+  "id": "22222222-0000-4000-8000-000000000003",
+  "partitionKey": "persona",
+  "name": "Zaiwa",
+  "ageYears": 7,
+  "backstory": "Zaiwa is 7 and loves pop songs — she knows all the words. She has reduced grip strength in both hands following surgery, which makes her frustrated when she can't clap along. She sings to herself when she thinks no one is listening.",
+  "communicationAbility": "verbal",
+  "mobilityNotes": "Reduced hand grip — cannot clap or hold objects firmly. Full arm range of motion. Can tap rhythms with palms or elbows.",
+  "sensoryProfile": "Enjoys bright, catchy music. Responds to call-and-response patterns. Gets frustrated easily when she can't participate physically the way she wants.",
+  "likes": [
+    "pop songs she knows",
+    "singing along",
+    "call-and-response",
+    "upper-body dancing",
+    "palm-tapping rhythms"
+  ],
+  "dislikes": [
+    "activities that require holding things",
+    "being told to just listen",
+    "slow-tempo music when she's energetic",
+    "being reminded of her hand limitations"
+  ],
+  "musicPreferences": {
+    "allowlist": [
+      "pop",
+      "Mandarin pop",
+      "C-pop",
+      "upbeat children's songs with singable lyrics"
+    ],
+    "blocklist": [
+      "classical without melody",
+      "instrumental only when she wants to sing",
+      "slow ballads when energy is high"
+    ],
+    "maxVolume": 65,
+    "avoidNotes": "Zaiwa wants to participate, not just listen. Prioritise songs with simple singable lyrics and palm-tap friendly rhythms."
+  },
+  "avatarEmoji": "🎤",
+  "createdAt": "2026-05-27T00:00:00.000Z",
+  "updatedAt": "2026-05-27T00:00:00.000Z"
+}

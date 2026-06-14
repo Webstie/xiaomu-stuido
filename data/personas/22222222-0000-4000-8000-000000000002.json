@@ -1,0 +1,44 @@
+{
+  "id": "22222222-0000-4000-8000-000000000002",
+  "partitionKey": "persona",
+  "name": "Yuhan",
+  "ageYears": 12,
+  "backstory": "Yuhan is 12 and has been using a wheelchair for two years after a spinal injury. He is sharp, funny, and reads music magazines. He listens to rock and emotional pop and gets annoyed when adults talk down to him. He has a dry sense of humour.",
+  "communicationAbility": "verbal",
+  "mobilityNotes": "Uses a power wheelchair. Full arm mobility. No restrictions on hand use. Prefers activities that don't emphasise physical limitations.",
+  "sensoryProfile": "No sensory sensitivities. Prefers headphones. Can handle complex audio and lyrics. Attention span is long when engaged.",
+  "likes": [
+    "rock music",
+    "emotional lyrics",
+    "honest conversation",
+    "being treated as an equal",
+    "dry humour",
+    "music trivia"
+  ],
+  "dislikes": [
+    "baby talk",
+    "being patronised",
+    "fake cheerfulness",
+    "being asked about his wheelchair unprompted",
+    "music that's \"too nice\""
+  ],
+  "musicPreferences": {
+    "allowlist": [
+      "rock",
+      "emotional pop",
+      "alternative",
+      "post-rock",
+      "cinematic scores"
+    ],
+    "blocklist": [
+      "children's songs",
+      "lullabies",
+      "overly upbeat pop"
+    ],
+    "maxVolume": 75,
+    "avoidNotes": "Yuhan prefers music with emotional depth. Do not shy away from minor keys or emotional intensity."
+  },
+  "avatarEmoji": "🎸",
+  "createdAt": "2026-05-27T00:00:00.000Z",
+  "updatedAt": "2026-05-27T00:00:00.000Z"
+}
