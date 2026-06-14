@@ -24,7 +24,6 @@ import {
   RETURNING_RECOGNITION,
   RETURNING_DAILY_STORIES,
   WEATHER_PROMPT,
-  RE_ASK_FIRST_MEETING,
 } from './introFlow.js';
 
 const LANG_LABEL: Record<string, string> = {
@@ -166,89 +165,45 @@ export function assembleSystemPrompt(
   const activityAlreadyRunning = Boolean(activityContext?.activityId);
 
   // ── 6a. Opening flow (model-judged intent — no classifier) ───────────────
-  // Replaces the studio's previous keyword/yesno-classifier state machine.
   // The studio still shows FIRST_MEETING_QUESTION as the assistant's opening
-  // line; once the child replies, this block tells the model how to branch.
+  // line. Once the child replies, the studio's client state machine takes
+  // over: it classifies yes/no/unclear and emits scripted replies (age prompt,
+  // mood reply, weather prompt, recommendation, game card, etc.) entirely on
+  // the client. The model is only consulted for free-form turns AFTER the
+  // child either (a) picks a game to try → silently triggers `start_activity`,
+  // (b) the recommended-game pool is exhausted, or (c) the child expresses
+  // direct activity intent at any point (bypass).
+  //
+  // This block remains so the model has the FIRST_TIME_INTRO + DAILY_STORIES
+  // text available when the studio plays them back, and so it knows the
+  // scripted flow exists and not to second-guess it.
   if (!activityAlreadyRunning) {
-    const warmupGames = (config.games ?? []).filter((g) => g.kind !== 'placeholder');
-
     lines.push(hr());
     lines.push('');
-    lines.push('## Opening flow (first 2–3 turns of a session)');
+    lines.push('## Opening flow (handled by the studio client, not you)');
     lines.push('');
     lines.push(`Session opens with the assistant asking: "${FIRST_MEETING_QUESTION}"`);
     lines.push('');
-    lines.push('You — not a keyword table — judge the child\'s reply across Mandarin / English / baby-talk / oblique answers. Then branch:');
+    lines.push('The studio\'s client state machine handles the next 2–6 turns: it classifies the child\'s reply, plays FIRST-TIME INTRO + ' + AGE_PROMPT + ' OR ' + RETURNING_RECOGNITION + ' + a daily story, then routes through a weather mood prompt and game recommendation. You do NOT generate these turns. The first time you are called is either:');
     lines.push('');
-    lines.push('• **YES / 第一次见面 / 没见过 (any affirmative)** → speak FIRST-TIME INTRO verbatim, then ask "' + AGE_PROMPT + '". On their next reply, acknowledge in ONE short line, then deliver the WEATHER PROMPT verbatim. **STOP after the weather prompt — do NOT continue to the activity decision or warmup games.** Just wait for the child to reply with a weather. (The rest of the first-meeting flow is still TBD.)');
+    lines.push('  • a silent message like "开始呼吸练习" / "开始身体律动" / "开始情绪-音乐映射" / "开始共创编曲" — the child picked a game and the client is asking you to call `start_activity` with the matching activity_id. Call it immediately.');
+    lines.push('  • the child gave a free-form reply after the client offered "那你想做什么呢?我们可以做呼吸、身体律动、情绪和音乐、或者一起创作音乐。" — pick the matching activity and call `start_activity`, or ask one short clarifying question if their reply is ambiguous.');
+    lines.push('  • the child expressed direct activity intent at any point during the scripted flow — same: call `start_activity` immediately.');
     lines.push('');
-    lines.push('• **NO / 见过 / 老朋友 (any denial)** → start with "' + RETURNING_RECOGNITION + '" then pick ONE varied story from the DAILY STORIES POOL (different across sessions). On their next reply, acknowledge in ONE short line. **Then proceed to "Activity decision" below — do NOT ask their age, do NOT ask about the weather.**');
+    lines.push('Do not re-ask scripted questions, do not repeat the weather prompt, do not narrate the recommendation. Stay focused on getting to `start_activity`.');
     lines.push('');
-    lines.push('• **UNCLEAR / unrelated** → gently re-ask: "' + RE_ASK_FIRST_MEETING + '" Do not progress until you have a clear yes or no.');
-    lines.push('');
-    lines.push('## Activity decision (ONLY for the NO / old-friend branch)');
-    lines.push('');
-    lines.push('After the daily-story acknowledgement, look at the child\'s latest 1–2 replies.');
-    lines.push('');
-    lines.push('**A. Direct activity intent expressed** (e.g. "我想创作音乐", "想做呼吸", "动一动", "了解情绪", "let\'s make music", anything that names an activity) →');
-    lines.push('   call `start_activity` IMMEDIATELY with the matching activity_id. Skip the rest of this decision.');
-    lines.push('');
-    lines.push('**B. No clear activity intent** → ask, in one short warm line:');
-    lines.push('   "我们要不要先玩一个小小的热身游戏？"');
-    lines.push('   (or a natural variant — keep it 1 sentence)');
-    lines.push('   On their reply, branch again:');
-    lines.push('');
-    lines.push('   **B.1 YES (any affirmative)** → pick ONE warmup game **at random** (different from the previous session if you can tell) and run it conversationally. Available games:');
-    if (warmupGames.length === 0) {
-      lines.push('      (no warmup games configured — fall through to B.2 instead)');
-    } else {
-      for (const g of warmupGames) {
-        if (g.kind === 'rhythm-story') {
-          lines.push(`      • **${g.name}** — open with "${g.prefix}" then deliver ONE story from the game\'s story list. Wait for the child to say "我拍完啦" (or any signal they\'re done). Then speak ONE completion response.`);
-        } else if (g.kind === 'sound-detective') {
-          lines.push(`      • **${g.name}** — speak the game\'s intro, then walk through 2–3 sounds: present each sound prompt, accept the child\'s guess, respond with the correct/wrong response, move on.`);
-        }
-      }
-    }
-    lines.push('');
-    lines.push('   **B.2 NO (any denial)** → offer two warm options in ONE line:');
-    lines.push('   "那我们要不要一起做几个深呼吸放松一下？" — if they say yes, call `start_activity({ activity_id: "breathing" })`.');
-    lines.push('   If they decline that too, ask "那你想做什么呢？我们可以做呼吸、身体律动、情绪和音乐、或者一起创作音乐。" and dispatch the matching activity.');
-    lines.push('');
-    lines.push('**C. Override anywhere**: if at ANY moment the child names an activity directly, abandon the current opening line and call `start_activity` immediately. The opening flow exists only to bridge to an activity — don\'t prolong it.');
-    lines.push('');
-    lines.push('─── FIRST-TIME INTRO ───');
+    lines.push('─── FIRST-TIME INTRO (reference — the client plays this verbatim) ───');
     lines.push(FIRST_TIME_INTRO);
     lines.push('─── END ───');
     lines.push('');
-    lines.push('─── DAILY STORIES POOL ───');
+    lines.push('─── DAILY STORIES POOL (reference — the client picks one) ───');
     RETURNING_DAILY_STORIES.forEach((s, i) => lines.push(`${i + 1}. ${s}`));
     lines.push('─── END ───');
     lines.push('');
-    lines.push('─── WEATHER PROMPT (YES branch only — speak verbatim after the age reply, then end your turn) ───');
+    lines.push('─── WEATHER PROMPT (reference) ───');
     lines.push(WEATHER_PROMPT);
     lines.push('─── END ───');
     lines.push('');
-    // Inline the warmup-game scripts so the model has them verbatim.
-    for (const g of warmupGames) {
-      if (g.kind === 'rhythm-story') {
-        lines.push(`─── ${g.name} STORIES POOL ───`);
-        g.stories.forEach((s, i) => lines.push(`${i + 1}. ${s}`));
-        lines.push('Completion responses:');
-        g.completionResponses.forEach((c, i) => lines.push(`${i + 1}. ${c}`));
-        lines.push('─── END ───');
-        lines.push('');
-      } else if (g.kind === 'sound-detective') {
-        lines.push(`─── ${g.name} INTRO ───`);
-        lines.push(g.intro);
-        lines.push('Sounds available:');
-        g.sounds.forEach((s, i) =>
-          lines.push(`${i + 1}. ${s.label} — ask: ${s.question.replace(/\n/g, ' ')}`),
-        );
-        lines.push('─── END ───');
-        lines.push('');
-      }
-    }
   }
 
   // ── 6b. Activities the model can start ───────────────────────────────────

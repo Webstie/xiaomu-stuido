@@ -5,7 +5,7 @@
  * yes / no / unclear?" without hand-rolling a keyword list that misses
  * variants like "否", "否定的", "嗯哼", "nah", etc.
  *
- * Body:    { text: string, schema: 'yesno' | 'mood' | 'goodbye' }
+ * Body:    { text: string, schema: 'yesno' | 'mood' | 'goodbye' | 'activity-intent' | 'task-completed' | 'sound-match' | 'quit-activity' | 'weather-mood' | 'game-name' | 'assistant-distress' }
  * Returns: { label: string }   (one of the allowed labels for that schema)
  */
 import type { FastifyInstance } from 'fastify';
@@ -87,6 +87,37 @@ const SCHEMAS = {
       '"换音符", "1️⃣", "魔法一", "我想换个音符", short reactions like "哇" / "好玩". ' +
       'When unsure between yes and no, choose no.',
   },
+  'weather-mood': {
+    labels: ['sunny', 'cloudy', 'rainy', 'snowy', 'thunder', 'unclear'] as const,
+    instruction:
+      'A child was just asked which weather best represents their current mood. ' +
+      'Classify their reply into one of the 5 weather buckets. ' +
+      'Reply with exactly ONE word from: sunny, cloudy, rainy, snowy, thunder, unclear.\n' +
+      'Examples that are SUNNY: "晴天", "阳光", "出太阳", "太阳", "sunny", "晴".\n' +
+      'Examples that are CLOUDY: "阴天", "灰灰的", "阴沉", "cloudy", "阴".\n' +
+      'Examples that are RAINY: "下雨天", "下雨", "雨", "雨天", "rain", "rainy".\n' +
+      'Examples that are SNOWY: "下雪天", "下雪", "雪", "雪天", "snow", "snowy".\n' +
+      'Examples that are THUNDER: "雷雨天", "打雷", "雷", "雷雨", "thunder", "thunderstorm".\n' +
+      'Examples that are UNCLEAR: unrelated chat, "不知道", "随便", "嗯", "?", a game name. ' +
+      'When unsure, choose unclear.',
+  },
+  'game-name': {
+    labels: ['rhythm', 'co-creation', 'breathing', 'emotion-mapping', 'unclear'] as const,
+    instruction:
+      'A child was just offered a short list of music-therapy mini-games and asked which one ' +
+      'they want to learn about. Classify their reply into one of the 4 game IDs. ' +
+      'Reply with exactly ONE word from: rhythm, co-creation, breathing, emotion-mapping, unclear.\n' +
+      'Examples that are RHYTHM (节奏练习 / 身体律动): "节奏练习", "身体律动", "rhythm", ' +
+      '"我想拍节奏", "动一动", "拍手那个", "body rhythm".\n' +
+      'Examples that are CO-CREATION (共创编曲): "共创编曲", "co-creation", "编曲", "创作音乐", ' +
+      '"我想做音乐", "选音符", "创作".\n' +
+      'Examples that are BREATHING (呼吸练习): "呼吸练习", "呼吸", "breathing", "深呼吸", ' +
+      '"我想做呼吸", "吸气吐气".\n' +
+      'Examples that are EMOTION-MAPPING (情绪-音乐映射): "情绪-音乐映射", "情绪映射", ' +
+      '"emotion mapping", "情绪音乐", "猜心情", "听音乐猜".\n' +
+      'Examples that are UNCLEAR: "好", "嗯", "试一试", "我不知道", "都可以", "看其他", ' +
+      'unrelated chat. When unsure, choose unclear.',
+  },
   'assistant-distress': {
     labels: ['yes', 'no'] as const,
     instruction:
@@ -111,7 +142,7 @@ type SchemaName = keyof typeof SCHEMAS;
 
 const ClassifyBodySchema = z.object({
   text: z.string().min(1).max(500),
-  schema: z.enum(['yesno', 'mood', 'goodbye', 'activity-intent', 'task-completed', 'sound-match', 'quit-activity', 'assistant-distress']),
+  schema: z.enum(['yesno', 'mood', 'goodbye', 'activity-intent', 'task-completed', 'sound-match', 'quit-activity', 'weather-mood', 'game-name', 'assistant-distress']),
   /** Optional context string the schema's instruction can reference (e.g. expected answer for sound-match). */
   context: z.string().max(500).optional(),
 });

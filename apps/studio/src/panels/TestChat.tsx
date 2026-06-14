@@ -58,8 +58,62 @@ type ScriptedSessionStep =
   | 'age-short'
   | 'returning-intro-answer'
   | 'weather-game-choice'
+  | 'game-pick'
+  | 'game-decide'
+  | 'game-pool-exhausted'
   | 'game-1-completion'
   | 'game-2-answer';
+
+// Game-recommendation state — driven by the weather the child names after the
+// WEATHER PROMPT. The four IDs map to the four real activities in default.json.
+// Keep these card texts in sync with apps/server/src/lib/introFlow.ts so the
+// system prompt's reference text and the client's spoken text don't drift.
+type RecommendedGameId = 'rhythm' | 'co-creation' | 'breathing' | 'emotion-mapping';
+
+interface RecommendedGame {
+  activityId: string;   // matches default.json activities[].id
+  displayName: string;  // spoken back when triggering start_activity silently
+  card: string;         // the introduction line shown when the child picks this
+}
+
+const RECOMMENDED_GAMES: Record<RecommendedGameId, RecommendedGame> = {
+  'rhythm': {
+    activityId: 'body-rhythm',
+    displayName: '身体律动',
+    card: '身体律动——这个游戏是把身体当成乐器!拍手、跺脚、打响指,跟着节奏敲出你自己的节拍。不需要乐器,你的身体就是最好的乐队。',
+  },
+  'co-creation': {
+    activityId: 'co-creation',
+    displayName: '共创编曲',
+    card: '共创编曲——这个游戏是你选几个音符,系统帮你变成一段小旋律。三个音就能玩出完全不一样的感觉,试试看?',
+  },
+  'breathing': {
+    activityId: 'breathing',
+    displayName: '呼吸练习',
+    card: '呼吸练习——这个练习是跟着音乐慢慢吸气、吐气,让心跳和旋律变成好朋友。做完会觉得身体变轻,心里也安安静静的。',
+  },
+  'emotion-mapping': {
+    activityId: 'emotion-music-mapping',
+    displayName: '情绪-音乐映射',
+    card: '情绪-音乐映射——这个练习是听一小段音乐,猜猜它是什么心情——开心的?还是有点难过?像给音乐贴表情包,慢慢你就能听懂音乐在说什么了。',
+  },
+};
+
+const SUNNY_POOL: RecommendedGameId[] = ['rhythm', 'co-creation'];
+const QUIET_POOL: RecommendedGameId[] = ['breathing', 'emotion-mapping', 'co-creation'];
+
+const SUNNY_RECOMMENDATION =
+  '原来是晴天啊!阳光好的日子,身体也想跟着动起来呢。我来给你推荐两个小游戏吧:节奏练习(Rhythm Practice)和共创编曲(Co-creation)。你有哪一个小游戏感兴趣吗?请告诉我这个游戏的名字,我可以简单给你介绍一下。';
+
+function quietRecommendationLocal(weatherWord: string): string {
+  return `原来是${weatherWord}啊。这种天气适合安安静静地和自己待一会儿。我来给你推荐三个小练习吧:呼吸练习(Breathing Exercise)、情绪-音乐映射(Emotional-to-Music Mapping)和共创编曲(Co-creation)。你有哪一个小游戏感兴趣吗?请告诉我这个游戏的名字,我可以简单给你介绍一下。`;
+}
+
+const RE_ASK_WEATHER = '嗯,我没太听明白。哪个天气更代表你现在的心情呢?';
+const GAME_DECIDE_PROMPT = '你想尝试一下这个小游戏吗?还是想看看其他游戏?如果是的话,请告诉我你想要了解的游戏。';
+const GAME_START_LINE = '好啊,那我们现在就开始咯。';
+const GAME_POOL_EXHAUSTED_PROMPT = '那你想做什么呢?我们可以做呼吸、身体律动、情绪和音乐、或者一起创作音乐。';
+const RE_ASK_GAME_NAME = '嗯,我没太确定。你想了解的是节奏练习、共创编曲、呼吸练习,还是情绪-音乐映射呢?';
 
 type Game2SoundId = 'chicken' | 'wind' | 'rain' | 'dog' | 'bird';
 
@@ -827,6 +881,16 @@ export default function TestChat() {
   }
   const game2SoundRef = useRef<PlayableSound | null>(null);
 
+  // ── Game-recommendation flow (weather → recommend → pick → decide) ──────
+  // gamePoolRef holds the remaining recommended games for this session (sunny
+  // bucket = 2, quiet = 3). introducedGamesRef remembers everything the child
+  // has already heard the card for, so "look at others" doesn't repeat. When
+  // the pool drains, we fall through to 'game-pool-exhausted' and hand back
+  // to the model.
+  const gamePoolRef = useRef<RecommendedGameId[]>([]);
+  const introducedGamesRef = useRef<Set<RecommendedGameId>>(new Set());
+  const currentGameRef = useRef<RecommendedGameId | null>(null);
+
   // Helpers that prefer config.games over the hardcoded fallbacks.
   const getRhythmStory = (): RhythmStoryGameConfig | null => {
     const g = gamesConfigRef.current?.find((x) => x.kind === 'rhythm-story');
@@ -1101,6 +1165,9 @@ export default function TestChat() {
     setSessionActive(true);
     setScriptedSessionStep('first-meeting');
     scriptedSessionStepRef.current = 'first-meeting';
+    gamePoolRef.current = [];
+    introducedGamesRef.current = new Set();
+    currentGameRef.current = null;
     setTranscript([assistantMsg]);
     apiHistoryRef.current = [{ role: 'assistant', content: firstQ }];
     setStreaming(true);
@@ -1121,6 +1188,9 @@ export default function TestChat() {
     setScriptedSessionStep('none');
     scriptedSessionStepRef.current = 'none';
     game2SoundRef.current = null;
+    gamePoolRef.current = [];
+    introducedGamesRef.current = new Set();
+    currentGameRef.current = null;
     setStreaming(false);
     streamingContentRef.current = '';
     setFaceExpr('calm');
@@ -1396,7 +1466,14 @@ export default function TestChat() {
       return;
     }
 
-    // ── Step 'weather-game-choice' → random 1-of-3 minigame ───────────────
+    // ── Step 'weather-game-choice' → classify weather → recommend games ───
+    // The child just named a weather (sunny / cloudy / rainy / snowy / thunder).
+    // Classify it, then emit the matching recommendation line and seed the
+    // game pool. Sunny gets a 2-game pool (rhythm + co-creation); the other
+    // four ("quiet" weather) get a 3-game pool (breathing + emotion-mapping +
+    // co-creation). The pool is consumed by the 'game-decide' state below
+    // when the child says "look at others" until it's empty, at which point
+    // we hand back to the model via 'game-pool-exhausted'.
     if (effectiveStep === 'weather-game-choice') {
       const userMsg: Transcript = { id: uid(), role: 'user', content: text };
       setTranscript((prev) => [...prev, userMsg]);
@@ -1405,41 +1482,32 @@ export default function TestChat() {
       setFaceExpr('thinking');
 
       void dispatchScriptedOrBypass({ userMsgId: userMsg.id }, async () => {
-        const gameRoll = Math.floor(Math.random() * 3);
+        let raw = 'unclear';
+        try {
+          raw = await classifyIntent(text, 'weather-mood');
+        } catch {
+          raw = 'unclear';
+        }
 
-        // Game 2 — sound detective. Speak intro, play sound, then ask question.
-        if (gameRoll === 1) {
-          const selectedSound = await pickGame2SoundFromConfig();
-          const game2Intro = getGame2Intro();
-          if (!selectedSound) {
-            // No sounds configured anywhere — skip Game 2 gracefully.
-            setStreaming(false);
-            setFaceExpr('calm');
-            setScriptedSessionStep('none');
-            scriptedSessionStepRef.current = 'none';
-            return;
-          }
-          game2SoundRef.current = selectedSound;
-          const introMsg: Transcript = { id: uid(), role: 'assistant', content: game2Intro };
-          setTranscript((prev) => [...prev, introMsg]);
-          apiHistoryRef.current = [...apiHistoryRef.current, { role: 'assistant', content: game2Intro }];
-          setScriptedSessionStep('game-2-answer');
-          scriptedSessionStepRef.current = 'game-2-answer';
+        let bucket: 'sunny' | 'quiet' | 'unclear' = 'unclear';
+        let mirror = '';
+        switch (raw) {
+          case 'sunny':   bucket = 'sunny'; mirror = '晴天'; break;
+          case 'cloudy':  bucket = 'quiet'; mirror = '阴天'; break;
+          case 'rainy':   bucket = 'quiet'; mirror = '下雨天'; break;
+          case 'snowy':   bucket = 'quiet'; mirror = '下雪天'; break;
+          case 'thunder': bucket = 'quiet'; mirror = '雷雨天'; break;
+          default:        bucket = 'unclear';
+        }
+
+        // Unclear → re-ask without advancing state.
+        if (bucket === 'unclear') {
+          const replyMsg: Transcript = { id: uid(), role: 'assistant', content: RE_ASK_WEATHER };
+          setTranscript((prev) => [...prev, replyMsg]);
+          apiHistoryRef.current = [...apiHistoryRef.current, { role: 'assistant', content: RE_ASK_WEATHER }];
           setFaceExpr('gentle');
           try {
-            await callTts(game2Intro, introMsg.id);
-            if (selectedSound.src) await playSoundEffect(selectedSound.src);
-            const questionMsg: Transcript = {
-              id: uid(),
-              role: 'assistant',
-              content: selectedSound.question,
-            };
-            setTranscript((prev) => [...prev, questionMsg]);
-            apiHistoryRef.current = [
-              ...apiHistoryRef.current,
-              { role: 'assistant', content: selectedSound.question },
-            ];
-            await callTts(selectedSound.question, questionMsg.id);
+            await callTts(RE_ASK_WEATHER, replyMsg.id);
           } finally {
             setStreaming(false);
             setTimeout(() => setFaceExpr('calm'), 500);
@@ -1448,26 +1516,230 @@ export default function TestChat() {
           return;
         }
 
-        // Game 1 (story + rhythm tapping) or Game 3 (placeholder).
-        const fixedReply = gameRoll === 0
-          ? `${getGame1Prefix()}\n\n${pickGame1StoryFromConfig()}`
-          : 'game 3';
-        const nextStep: ScriptedSessionStep = gameRoll === 0 ? 'game-1-completion' : 'none';
+        // Seed the pool fresh — defensive in case a prior session leaked.
+        gamePoolRef.current = bucket === 'sunny'
+          ? [...SUNNY_POOL]
+          : [...QUIET_POOL];
+        introducedGamesRef.current = new Set();
+        currentGameRef.current = null;
 
-        const replyMsg: Transcript = { id: uid(), role: 'assistant', content: fixedReply };
+        const recommendation = bucket === 'sunny'
+          ? SUNNY_RECOMMENDATION
+          : quietRecommendationLocal(mirror);
+
+        const replyMsg: Transcript = { id: uid(), role: 'assistant', content: recommendation };
         setTranscript((prev) => [...prev, replyMsg]);
-        apiHistoryRef.current = [...apiHistoryRef.current, { role: 'assistant', content: fixedReply }];
-        setScriptedSessionStep(nextStep);
-        scriptedSessionStepRef.current = nextStep;
+        apiHistoryRef.current = [...apiHistoryRef.current, { role: 'assistant', content: recommendation }];
+        setScriptedSessionStep('game-pick');
+        scriptedSessionStepRef.current = 'game-pick';
         setFaceExpr('gentle');
         try {
-          await callTts(fixedReply, replyMsg.id);
+          await callTts(recommendation, replyMsg.id);
         } finally {
           setStreaming(false);
           setTimeout(() => setFaceExpr('calm'), 500);
           if (await goodbyePromise) handleEndSession();
         }
       });
+      return;
+    }
+
+    // ── Step 'game-pick' → child names a game → emit card + decide prompt ─
+    // The child has just heard the recommendation and is naming one of the
+    // games. Classify which one, drop it from the remaining pool, mark it
+    // introduced, then speak the card + GAME_DECIDE_PROMPT in one bubble.
+    if (effectiveStep === 'game-pick') {
+      const userMsg: Transcript = { id: uid(), role: 'user', content: text };
+      setTranscript((prev) => [...prev, userMsg]);
+      apiHistoryRef.current = [...apiHistoryRef.current, { role: 'user', content: text }];
+      setStreaming(true);
+      setFaceExpr('thinking');
+
+      void dispatchScriptedOrBypass({ userMsgId: userMsg.id }, async () => {
+        let game: RecommendedGameId | 'unclear' = 'unclear';
+        try {
+          const raw = await classifyIntent(text, 'game-name');
+          if (raw === 'rhythm' || raw === 'co-creation' || raw === 'breathing' || raw === 'emotion-mapping') {
+            game = raw;
+          }
+        } catch {
+          game = 'unclear';
+        }
+
+        if (game === 'unclear') {
+          const replyMsg: Transcript = { id: uid(), role: 'assistant', content: RE_ASK_GAME_NAME };
+          setTranscript((prev) => [...prev, replyMsg]);
+          apiHistoryRef.current = [...apiHistoryRef.current, { role: 'assistant', content: RE_ASK_GAME_NAME }];
+          setFaceExpr('gentle');
+          try {
+            await callTts(RE_ASK_GAME_NAME, replyMsg.id);
+          } finally {
+            setStreaming(false);
+            setTimeout(() => setFaceExpr('calm'), 500);
+            if (await goodbyePromise) handleEndSession();
+          }
+          return;
+        }
+
+        // Take the picked game out of the remaining pool (so "look at others"
+        // never re-offers it) and remember we've shown its card.
+        gamePoolRef.current = gamePoolRef.current.filter((g) => g !== game);
+        introducedGamesRef.current.add(game);
+        currentGameRef.current = game;
+
+        const card = RECOMMENDED_GAMES[game].card;
+        const reply = `${card}\n\n${GAME_DECIDE_PROMPT}`;
+
+        const replyMsg: Transcript = { id: uid(), role: 'assistant', content: reply };
+        setTranscript((prev) => [...prev, replyMsg]);
+        apiHistoryRef.current = [...apiHistoryRef.current, { role: 'assistant', content: reply }];
+        setScriptedSessionStep('game-decide');
+        scriptedSessionStepRef.current = 'game-decide';
+        setFaceExpr('gentle');
+        try {
+          await callTts(reply, replyMsg.id);
+        } finally {
+          setStreaming(false);
+          setTimeout(() => setFaceExpr('calm'), 500);
+          if (await goodbyePromise) handleEndSession();
+        }
+      });
+      return;
+    }
+
+    // ── Step 'game-decide' → "try it" → start_activity; "look at others" → loop ─
+    // After hearing the card, the child either wants to start the game (yes)
+    // or wants to hear about a different one (no). Yes: speak the start line,
+    // then SILENTLY tell the model "开始<game>吧" so it calls start_activity.
+    // No: if the recommended pool still has games, classify whether the child
+    // named a specific one (handle that as a direct game-pick) or just said
+    // "看其他" — pick the next pool game and emit its card. If the pool is
+    // empty, transition to 'game-pool-exhausted'.
+    if (effectiveStep === 'game-decide') {
+      const userMsg: Transcript = { id: uid(), role: 'user', content: text };
+      setTranscript((prev) => [...prev, userMsg]);
+      apiHistoryRef.current = [...apiHistoryRef.current, { role: 'user', content: text }];
+      setStreaming(true);
+      setFaceExpr('thinking');
+
+      void dispatchScriptedOrBypass({ userMsgId: userMsg.id }, async () => {
+        // First check if the child named a *different* game (e.g. after hearing
+        // 呼吸 they say "想听共创编曲") — treat that as a direct game-pick.
+        let namedGame: RecommendedGameId | 'unclear' = 'unclear';
+        try {
+          const raw = await classifyIntent(text, 'game-name');
+          if (raw === 'rhythm' || raw === 'co-creation' || raw === 'breathing' || raw === 'emotion-mapping') {
+            namedGame = raw;
+          }
+        } catch { /* fall through to yes/no */ }
+
+        if (namedGame !== 'unclear' && namedGame !== currentGameRef.current) {
+          // Re-route as if we were in 'game-pick' for the newly named game.
+          gamePoolRef.current = gamePoolRef.current.filter((g) => g !== namedGame);
+          introducedGamesRef.current.add(namedGame);
+          currentGameRef.current = namedGame;
+
+          const card = RECOMMENDED_GAMES[namedGame].card;
+          const reply = `${card}\n\n${GAME_DECIDE_PROMPT}`;
+          const replyMsg: Transcript = { id: uid(), role: 'assistant', content: reply };
+          setTranscript((prev) => [...prev, replyMsg]);
+          apiHistoryRef.current = [...apiHistoryRef.current, { role: 'assistant', content: reply }];
+          // Stay in game-decide for the newly introduced game.
+          setFaceExpr('gentle');
+          try {
+            await callTts(reply, replyMsg.id);
+          } finally {
+            setStreaming(false);
+            setTimeout(() => setFaceExpr('calm'), 500);
+            if (await goodbyePromise) handleEndSession();
+          }
+          return;
+        }
+
+        // Otherwise treat the reply as yes/no on "want to try this game?".
+        let yesno: 'yes' | 'no' | 'unclear' = 'unclear';
+        try {
+          const raw = await classifyIntent(text, 'yesno');
+          if (raw === 'yes' || raw === 'no' || raw === 'unclear') yesno = raw;
+        } catch {
+          yesno = 'unclear';
+        }
+
+        if (yesno === 'yes') {
+          // Start the picked game. Speak the start line, then silently nudge
+          // the model with "开始<游戏中文名>吧" so it calls start_activity.
+          const game = currentGameRef.current;
+          const replyMsg: Transcript = { id: uid(), role: 'assistant', content: GAME_START_LINE };
+          setTranscript((prev) => [...prev, replyMsg]);
+          apiHistoryRef.current = [...apiHistoryRef.current, { role: 'assistant', content: GAME_START_LINE }];
+          setScriptedSessionStep('none');
+          scriptedSessionStepRef.current = 'none';
+          setFaceExpr('excited');
+          try {
+            await callTts(GAME_START_LINE, replyMsg.id);
+          } finally {
+            setStreaming(false);
+            setTimeout(() => setFaceExpr('calm'), 500);
+            if (await goodbyePromise) {
+              handleEndSession();
+              return;
+            }
+          }
+          if (game) {
+            sendMessageRef.current?.(`开始${RECOMMENDED_GAMES[game].displayName}吧`, { silent: true });
+          }
+          return;
+        }
+
+        // "No" or unclear → look at others. If the pool still has games,
+        // pop one and present it. Otherwise fall through to exhausted.
+        if (gamePoolRef.current.length === 0) {
+          const replyMsg: Transcript = { id: uid(), role: 'assistant', content: GAME_POOL_EXHAUSTED_PROMPT };
+          setTranscript((prev) => [...prev, replyMsg]);
+          apiHistoryRef.current = [...apiHistoryRef.current, { role: 'assistant', content: GAME_POOL_EXHAUSTED_PROMPT }];
+          setScriptedSessionStep('game-pool-exhausted');
+          scriptedSessionStepRef.current = 'game-pool-exhausted';
+          setFaceExpr('gentle');
+          try {
+            await callTts(GAME_POOL_EXHAUSTED_PROMPT, replyMsg.id);
+          } finally {
+            setStreaming(false);
+            setTimeout(() => setFaceExpr('calm'), 500);
+            if (await goodbyePromise) handleEndSession();
+          }
+          return;
+        }
+
+        const next = gamePoolRef.current.shift()!;
+        introducedGamesRef.current.add(next);
+        currentGameRef.current = next;
+
+        const card = RECOMMENDED_GAMES[next].card;
+        const reply = `${card}\n\n${GAME_DECIDE_PROMPT}`;
+        const replyMsg: Transcript = { id: uid(), role: 'assistant', content: reply };
+        setTranscript((prev) => [...prev, replyMsg]);
+        apiHistoryRef.current = [...apiHistoryRef.current, { role: 'assistant', content: reply }];
+        // Stay in game-decide for the new card.
+        setFaceExpr('gentle');
+        try {
+          await callTts(reply, replyMsg.id);
+        } finally {
+          setStreaming(false);
+          setTimeout(() => setFaceExpr('calm'), 500);
+          if (await goodbyePromise) handleEndSession();
+        }
+      });
+      return;
+    }
+
+    // ── Step 'game-pool-exhausted' → child's free-form reply → hand to model ─
+    // We just asked "那你想做什么呢?". Whatever the child says, drop the
+    // scripted scaffolding and let the model handle it — the system prompt
+    // already tells it to call start_activity on direct intent.
+    if (effectiveStep === 'game-pool-exhausted') {
+      setScriptedSessionStep('none');
+      scriptedSessionStepRef.current = 'none';
+      sendMessageRef.current?.(text);
       return;
     }
 
