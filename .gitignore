@@ -5,3 +5,8 @@ node_modules/
 dist/
 *.tsbuildinfo
 .DS_Store
+
+# Runtime-only data (seed configs & personas ARE tracked)
+data/audio/
+data/published/
+data/audit.jsonl

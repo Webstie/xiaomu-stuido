@@ -56,15 +56,15 @@ xiaomu-studio/
 ├── pnpm-workspace.yaml
 ├── tsconfig.base.json
 ├── .env.example                    ← AZURE_FOUNDRY_*, AZURE_SPEECH_*
-├── .gitignore                      ← node_modules, .env, data/, .idea/, .vscode/
+├── .gitignore                      ← node_modules, .env, .idea/, .vscode/, data/audio/, data/published/, data/audit.jsonl
 ├── scripts/
 │   └── setup.sh                    ← idempotent az resource provisioning + .env write
-├── data/                           ← gitignored; created at runtime
-│   ├── configs/                    ← per-draft config JSON
-│   ├── personas/                   ← persona JSONs
-│   ├── audio/                      ← uploaded audio files
-│   ├── published/                  ← v1.json, v2.json, ...
-│   └── audit.jsonl                 ← append-only log
+├── data/                           ← partially tracked; seed configs/personas committed, runtime artifacts ignored
+│   ├── configs/                    ← per-draft config JSON (tracked: default.json seed)
+│   ├── personas/                   ← persona JSONs (tracked: Zi/Yuhan/Zaiwa seeds)
+│   ├── audio/                      ← uploaded audio files (gitignored — too large for git)
+│   ├── published/                  ← v1.json, v2.json, ... (gitignored — runtime)
+│   └── audit.jsonl                 ← append-only log (gitignored — runtime)
 ├── packages/
 │   └── contracts/
 │       ├── package.json
