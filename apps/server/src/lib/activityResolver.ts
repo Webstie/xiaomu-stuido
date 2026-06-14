@@ -1,5 +1,5 @@
 /**
- * Resolves an activity's scripted content for the current persona.
+ * Resolves an activity's scripted content for the current child's age.
  *
  * Supports both:
  *  - `activity.scripted`        — age-bucketed sections (body-rhythm, breathing)
@@ -7,7 +7,7 @@
  *
  * Returns `null` when the activity has no scripted content (e.g. co-creation).
  */
-import type { Activity, Persona } from '@xiaomu/contracts';
+import type { Activity } from '@xiaomu/contracts';
 
 export interface ResolvedActivityScript {
   /** Ordered narration sections — one per chat turn. */
@@ -22,11 +22,11 @@ export interface ResolvedActivityScript {
 
 export function resolveActivityScript(
   activity: Activity,
-  persona: Persona,
+  childAge: number,
 ): ResolvedActivityScript | null {
   if (activity.scripted) {
     const bucket = activity.scripted.ageBuckets.find(
-      (b) => persona.ageYears >= b.minAge && persona.ageYears <= b.maxAge,
+      (b) => childAge >= b.minAge && childAge <= b.maxAge,
     );
     if (!bucket) return null;
     const sections = bucket.narrationScript

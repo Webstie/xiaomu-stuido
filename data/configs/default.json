@@ -232,7 +232,7 @@
   "activities": [
     {
       "id": "breathing",
-      "name": "Breathing Exercise",
+      "name": "呼吸练习",
       "type": "breathing",
       "description": "Level 1. Calm anxiety, regulate physiology. Soft piano with narrated short stories (prerecorded); LED feedback adjusts as the child progresses.",
       "defaultExpression": "calm",
@@ -268,7 +268,7 @@
     },
     {
       "id": "body-rhythm",
-      "name": "Body Rhythm Practice",
+      "name": "身体小乐队",
       "type": "body-rhythm",
       "description": "Level 2. Engage movement and body coordination. Narrator-guided clap / lap / stomp with prerecorded music; LED feedback as the child progresses.",
       "defaultExpression": "playful",
@@ -296,7 +296,7 @@
     },
     {
       "id": "emotion-music-mapping",
-      "name": "Emotional-to-Music Mapping",
+      "name": "音乐心情猜猜猜",
       "type": "emotion-music-mapping",
       "description": "Level 3. Teach emotions through music. Prerecorded soundtracks demonstrate tempo / pitch / dynamics; simple toys or instruments invite interaction.",
       "defaultExpression": "curious",
@@ -377,7 +377,7 @@
     },
     {
       "id": "co-creation",
-      "name": "Co-Creation of Music",
+      "name": "三个音符变魔法",
       "type": "co-creation",
       "description": "Level 4. Child-led music creation. Robot offers 3 note choices (Do–Ti) and an instrument, plays a base, then prompts a variation. Positive feedback follows.",
       "defaultExpression": "celebrating",
@@ -713,13 +713,30 @@
       "you are important"
     ]
   },
-  "musicPreferences": {
-    "maxVolumeGlobal": 70,
-    "avoidGenres": [
-      "heavy metal",
-      "explicit hip-hop",
-      "horror soundscapes"
-    ],
-    "notes": "Prefer gentle dynamics. Sudden loud sounds can startle or distress. Fade in/out all audio."
-  }
+  "musicPreferences": [
+    {
+      "minAge": 3,
+      "maxAge": 5,
+      "maxVolume": 55,
+      "allowlist": ["lullaby", "soft-classical", "nature-sounds"],
+      "blocklist": ["heavy metal", "explicit hip-hop", "horror soundscapes"],
+      "avoidNotes": "Very gentle dynamics. No sudden loud sounds. Slow tempos. Fade in/out all audio."
+    },
+    {
+      "minAge": 6,
+      "maxAge": 9,
+      "maxVolume": 65,
+      "allowlist": ["soft-classical", "playful-pop", "nature-sounds", "world-percussion"],
+      "blocklist": ["heavy metal", "explicit hip-hop", "horror soundscapes"],
+      "avoidNotes": "Prefer gentle dynamics. Mid-tempo OK. Avoid jarring stings."
+    },
+    {
+      "minAge": 10,
+      "maxAge": 99,
+      "maxVolume": 75,
+      "allowlist": ["classical", "indie-pop", "ambient", "lo-fi", "world", "soundtrack"],
+      "blocklist": ["heavy metal", "explicit hip-hop", "horror soundscapes"],
+      "avoidNotes": "Tolerates more dynamic range; still no jump-scares or aggressive distortion."
+    }
+  ]
 }

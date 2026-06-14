@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  User, Brain, Mic, AudioLines, Smile, Sparkles, Users,
+  User, Brain, Mic, AudioLines, Smile, Sparkles,
   Activity, Heart, Baby, Music, MessageSquare, Shield,
   Library, MessageCircle, Upload, Package,
 } from 'lucide-react';
@@ -11,7 +11,6 @@ import Voice from './panels/Voice.js';
 import VoiceSamples from './panels/VoiceSamples.js';
 import Face from './panels/Face.js';
 import Expressions from './panels/Expressions.js';
-import Personas from './panels/Personas.js';
 import Activities from './panels/Activities.js';
 import EmotionRouting from './panels/EmotionRouting.js';
 import AgeRouting from './panels/AgeRouting.js';
@@ -25,7 +24,7 @@ import Export from './panels/Export.js';
 
 type PanelId =
   | 'identity' | 'personality' | 'voice' | 'voice-samples' | 'face'
-  | 'expressions' | 'personas' | 'activities' | 'emotion-routing'
+  | 'expressions' | 'activities' | 'emotion-routing'
   | 'age-routing' | 'music-prefs' | 'conversation-flow' | 'safety'
   | 'audio-library' | 'test-chat' | 'publish' | 'export';
 
@@ -43,7 +42,6 @@ const NAV: NavItem[] = [
   { id: 'voice-samples',     label: 'Voice Samples',     icon: AudioLines,      group: 'Robot' },
   { id: 'face',              label: 'Face',              icon: Smile,           group: 'Robot' },
   { id: 'expressions',       label: 'Expressions',       icon: Sparkles,        group: 'Robot' },
-  { id: 'personas',          label: 'Personas',          icon: Users,           group: 'Children' },
   { id: 'activities',        label: 'Activities',        icon: Activity,        group: 'Children' },
   { id: 'emotion-routing',   label: 'Emotion Routing',   icon: Heart,           group: 'Children' },
   { id: 'age-routing',       label: 'Age Routing',       icon: Baby,            group: 'Children' },
@@ -65,7 +63,6 @@ const PANEL_MAP: Record<PanelId, React.ReactNode> = {
   'voice-samples':   <VoiceSamples />,
   face:              <Face />,
   expressions:       <Expressions />,
-  personas:          <Personas />,
   activities:        <Activities />,
   'emotion-routing': <EmotionRouting />,
   'age-routing':     <AgeRouting />,

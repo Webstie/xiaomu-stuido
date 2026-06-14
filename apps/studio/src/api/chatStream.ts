@@ -28,7 +28,7 @@ export interface ToolCallResult {
   sectionNumber?: number;
   totalSections?: number;
   speakingInstruction?: string;
-  personaAge?: number;
+  childAge?: number;
   matchedBucket?: { minAge: number; maxAge: number } | null;
   interactive?: boolean;
   // play_melody (co-creation)
@@ -57,9 +57,11 @@ export interface ChatStreamCallbacks {
 export function startChatStream(
   body: {
     configId?: string;
-    personaId: string;
+    childAge: number;
     messages: ChatMessage[];
     activityContext?: ActivityContext;
+    /** Set true when the front-line risk classifier flagged the incoming user turn as `concerning`. */
+    concerningMode?: boolean;
   },
   callbacks: ChatStreamCallbacks,
 ): () => void {

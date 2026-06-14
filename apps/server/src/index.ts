@@ -8,36 +8,25 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
 import { ensureDir, fileExists, writeJson } from './lib/fileStore.js';
-import { DEFAULT_CONFIG, ZI_PERSONA, YUHAN_PERSONA, ZAIWA_PERSONA } from './lib/seeds.js';
+import { DEFAULT_CONFIG } from './lib/seeds.js';
 import { registerChatRoute } from './routes/chat.js';
 import { registerConfigRoutes } from './routes/config.js';
-import { registerPersonaRoutes } from './routes/personas.js';
 import { registerTtsRoutes } from './routes/tts.js';
 import { registerVoiceLiveRoute } from './routes/voice-live.js';
 import { registerAudioRoutes } from './routes/audio.js';
 import { registerClassifyRoute } from './routes/classify.js';
+import { registerRiskRoute } from './routes/risk.js';
 
 const PORT = parseInt(process.env['PORT'] ?? '8787', 10);
 
 // ── Bootstrap data dir on startup ─────────────────────────────────────────────
 async function bootstrapData(): Promise<void> {
   await ensureDir('configs');
-  await ensureDir('personas');
   await ensureDir('audio');
   await ensureDir('published');
 
   if (!(await fileExists('configs/default.json'))) {
     await writeJson('configs/default.json', DEFAULT_CONFIG);
-  }
-  // Persona files are keyed by the persona's UUID id field.
-  if (!(await fileExists(`personas/${ZI_PERSONA.id}.json`))) {
-    await writeJson(`personas/${ZI_PERSONA.id}.json`, ZI_PERSONA);
-  }
-  if (!(await fileExists(`personas/${YUHAN_PERSONA.id}.json`))) {
-    await writeJson(`personas/${YUHAN_PERSONA.id}.json`, YUHAN_PERSONA);
-  }
-  if (!(await fileExists(`personas/${ZAIWA_PERSONA.id}.json`))) {
-    await writeJson(`personas/${ZAIWA_PERSONA.id}.json`, ZAIWA_PERSONA);
   }
 }
 
@@ -64,8 +53,8 @@ app.get('/api/health', async () => ({ ok: true, ts: new Date().toISOString() }))
 
 await registerChatRoute(app);
 await registerConfigRoutes(app);
-await registerPersonaRoutes(app);
 await registerTtsRoutes(app);
+await registerRiskRoute(app);
 await registerVoiceLiveRoute(app);
 await registerAudioRoutes(app);
 await registerClassifyRoute(app);

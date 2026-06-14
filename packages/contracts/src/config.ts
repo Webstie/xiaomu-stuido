@@ -302,15 +302,18 @@ export const SafetySchema = z.object({
 
 export type Safety = z.infer<typeof SafetySchema>;
 
-// ── Music Preferences (global) ────────────────────────────────────────────────
+// ── Music Preferences (age-bucketed) ─────────────────────────────────────────
 
-export const GlobalMusicPreferencesSchema = z.object({
-  maxVolumeGlobal: z.number().min(0).max(100),
-  avoidGenres: z.array(z.string()),
-  notes: z.string(),
+export const AgeMusicPreferencesSchema = z.object({
+  minAge: z.number().int().min(0),
+  maxAge: z.number().int().min(0),
+  maxVolume: z.number().min(0).max(100),
+  allowlist: z.array(z.string()),
+  blocklist: z.array(z.string()),
+  avoidNotes: z.string(),
 });
 
-export type GlobalMusicPreferences = z.infer<typeof GlobalMusicPreferencesSchema>;
+export type AgeMusicPreferences = z.infer<typeof AgeMusicPreferencesSchema>;
 
 // ── StudioConfig (root) ───────────────────────────────────────────────────────
 
@@ -332,7 +335,7 @@ export const StudioConfigSchema = z.object({
   ageRouting: z.array(AgeRangeRouteSchema),
   conversationFlow: ConversationFlowSchema,
   safety: SafetySchema,
-  musicPreferences: GlobalMusicPreferencesSchema,
+  musicPreferences: z.array(AgeMusicPreferencesSchema),
 });
 
 export type StudioConfig = z.infer<typeof StudioConfigSchema>;

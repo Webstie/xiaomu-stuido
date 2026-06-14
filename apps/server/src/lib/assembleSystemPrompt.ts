@@ -7,15 +7,15 @@
  * Sections:
  *   1. Identity + language
  *   2. Character: traits, do/don't
- *   3. Child profile: full persona
- *   4. Language register (from ageRouting)
+ *   3. Child profile: age only
+ *   4. Language register (from ageRouting) + age-bucketed music preferences
  *   5. Voice guide: all voice samples as few-shot examples
  *   6. Safety rules
  *   7. Activity context (if mid-session)
  *   8. Session rhythm
  */
 
-import type { StudioConfig, Persona, ActivityContext } from '@xiaomu/contracts';
+import type { StudioConfig, ActivityContext } from '@xiaomu/contracts';
 import { resolveActivityScript } from './activityResolver.js';
 import {
   FIRST_MEETING_QUESTION,
@@ -57,11 +57,11 @@ function hr(): string {
 
 export function assembleSystemPrompt(
   config: StudioConfig,
-  persona: Persona,
+  childAge: number,
   activityContext?: ActivityContext,
 ): string {
   const lines: string[] = [];
-  const { identity, personality, voiceSamples, safety, conversationFlow, ageRouting } = config;
+  const { identity, personality, voiceSamples, safety, conversationFlow, ageRouting, musicPreferences } = config;
 
   // ── 1. Identity ───────────────────────────────────────────────────────────
   lines.push(
@@ -91,35 +91,15 @@ export function assembleSystemPrompt(
   lines.push(hr());
   lines.push('');
 
-  // ── 3. Child profile ──────────────────────────────────────────────────────
-  lines.push(`## The child you're with: ${persona.name}`);
+  // ── 3. Child profile (age only) ───────────────────────────────────────────
+  lines.push('## The child you\'re with');
   lines.push('');
-  lines.push(`Age: ${persona.ageYears} years old`);
-  lines.push(persona.backstory);
-  lines.push('');
-  const commLabel =
-    persona.communicationAbility === 'limited-verbal'
-      ? 'Limited verbal — uses gestures, sounds, or a few words'
-      : persona.communicationAbility === 'non-verbal'
-      ? 'Non-verbal — communicates through body language and expression'
-      : 'Verbal — full conversational ability';
-  lines.push(`Communication: ${commLabel}`);
-  lines.push(`Mobility: ${persona.mobilityNotes}`);
-  lines.push(`Sensory profile: ${persona.sensoryProfile}`);
-  lines.push(`Likes: ${persona.likes.join(', ')}`);
-  lines.push(`Dislikes: ${persona.dislikes.join(', ')}`);
-  lines.push('');
-  const mp = persona.musicPreferences;
-  const mpParts: string[] = [`max volume ${mp.maxVolume}%`];
-  if (mp.allowlist.length > 0) mpParts.push(`prefers: ${mp.allowlist.join(', ')}`);
-  if (mp.blocklist.length > 0) mpParts.push(`avoid: ${mp.blocklist.join(', ')}`);
-  if (mp.avoidNotes) mpParts.push(mp.avoidNotes);
-  lines.push(`Music: ${mpParts.join(' | ')}`);
+  lines.push(`Age: ${childAge} years old`);
   lines.push('');
 
-  // ── 4. Language register ──────────────────────────────────────────────────
+  // ── 4. Language register + age-bucketed music preferences ────────────────
   const ageRoute = ageRouting.find(
-    (r) => persona.ageYears >= r.minAge && persona.ageYears <= r.maxAge,
+    (r) => childAge >= r.minAge && childAge <= r.maxAge,
   );
   if (ageRoute) {
     const note = REGISTER_NOTE[ageRoute.languageRegister] ?? ageRoute.notes ?? '';
@@ -127,6 +107,18 @@ export function assembleSystemPrompt(
     if (ageRoute.notes && REGISTER_NOTE[ageRoute.languageRegister]) {
       lines.push(`Additional note: ${ageRoute.notes}`);
     }
+    lines.push('');
+  }
+
+  const mp = musicPreferences.find(
+    (b) => childAge >= b.minAge && childAge <= b.maxAge,
+  );
+  if (mp) {
+    const mpParts: string[] = [`max volume ${mp.maxVolume}%`];
+    if (mp.allowlist.length > 0) mpParts.push(`prefers: ${mp.allowlist.join(', ')}`);
+    if (mp.blocklist.length > 0) mpParts.push(`avoid: ${mp.blocklist.join(', ')}`);
+    if (mp.avoidNotes) mpParts.push(mp.avoidNotes);
+    lines.push(`Music: ${mpParts.join(' | ')}`);
     lines.push('');
   }
 
@@ -186,8 +178,8 @@ export function assembleSystemPrompt(
     lines.push('');
     lines.push('The studio\'s client state machine handles the next 2–6 turns: it classifies the child\'s reply, plays FIRST-TIME INTRO + ' + AGE_PROMPT + ' OR ' + RETURNING_RECOGNITION + ' + a daily story, then routes through a weather mood prompt and game recommendation. You do NOT generate these turns. The first time you are called is either:');
     lines.push('');
-    lines.push('  • a silent message like "开始呼吸练习" / "开始身体律动" / "开始情绪-音乐映射" / "开始共创编曲" — the child picked a game and the client is asking you to call `start_activity` with the matching activity_id. Call it immediately.');
-    lines.push('  • the child gave a free-form reply after the client offered "那你想做什么呢?我们可以做呼吸、身体律动、情绪和音乐、或者一起创作音乐。" — pick the matching activity and call `start_activity`, or ask one short clarifying question if their reply is ambiguous.');
+    lines.push('  • a silent message like "开始呼吸练习" / "开始身体小乐队" / "开始音乐心情猜猜猜" / "开始三个音符变魔法" — the child picked a game and the client is asking you to call `start_activity` with the matching activity_id. Call it immediately.');
+    lines.push('  • the child gave a free-form reply after the client offered "那你想做什么呢?我们可以做呼吸练习、身体小乐队、音乐心情猜猜猜、或者三个音符变魔法。" — pick the matching activity and call `start_activity`, or ask one short clarifying question if their reply is ambiguous.');
     lines.push('  • the child expressed direct activity intent at any point during the scripted flow — same: call `start_activity` immediately.');
     lines.push('');
     lines.push('Do not re-ask scripted questions, do not repeat the weather prompt, do not narrate the recommendation. Stay focused on getting to `start_activity`.');
@@ -317,7 +309,7 @@ export function assembleSystemPrompt(
         lines.push(cc.narrationScript);
         lines.push('─── END GUIDE ───');
       } else if (activity) {
-        const resolved = resolveActivityScript(activity, persona);
+        const resolved = resolveActivityScript(activity, childAge);
         if (resolved && resolved.sections.length > 0) {
           const idx = activityContext.sectionIndex ?? 0;
 
@@ -351,10 +343,6 @@ export function assembleSystemPrompt(
 
     lines.push('');
   }
-
-  // Suppress legacy advice that would conflict with co-creation's free-form flow.
-  // (The block above already covers what the model needs.)
-  void persona;
 
   // ── 8. Session rhythm ─────────────────────────────────────────────────────
   lines.push(hr());

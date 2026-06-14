@@ -9,7 +9,6 @@
  *   - Child-appropriate, 1–3 sentences each
  */
 import type { StudioConfig } from '@xiaomu/contracts';
-import type { Persona } from '@xiaomu/contracts';
 
 // ── Narration scripts ─────────────────────────────────────────────────────────
 
@@ -341,7 +340,7 @@ export const DEFAULT_CONFIG: StudioConfig = {
   activities: [
     {
       id: 'breathing',
-      name: 'Breathing Exercise',
+      name: '呼吸练习',
       type: 'breathing',
       description: 'Level 1. Calm anxiety, regulate physiology. Soft piano with narrated short stories (prerecorded); LED feedback adjusts as the child progresses.',
       defaultExpression: 'calm',
@@ -369,7 +368,7 @@ export const DEFAULT_CONFIG: StudioConfig = {
     },
     {
       id: 'body-rhythm',
-      name: 'Body Rhythm Practice',
+      name: '身体小乐队',
       type: 'body-rhythm',
       description: 'Level 2. Engage movement and body coordination. Narrator-guided clap / lap / stomp with prerecorded music; LED feedback as the child progresses.',
       defaultExpression: 'playful',
@@ -397,7 +396,7 @@ export const DEFAULT_CONFIG: StudioConfig = {
     },
     {
       id: 'emotion-music-mapping',
-      name: 'Emotional-to-Music Mapping',
+      name: '音乐心情猜猜猜',
       type: 'emotion-music-mapping',
       description: 'Level 3. Teach emotions through music. Prerecorded soundtracks demonstrate tempo / pitch / dynamics; simple toys or instruments invite interaction.',
       defaultExpression: 'curious',
@@ -407,7 +406,7 @@ export const DEFAULT_CONFIG: StudioConfig = {
     },
     {
       id: 'co-creation',
-      name: 'Co-Creation of Music',
+      name: '三个音符变魔法',
       type: 'co-creation',
       description: 'Level 4. Child-led music creation. Robot offers 3 note choices (Do–Ti) and an instrument, plays a base, then prompts a variation. Positive feedback follows.',
       defaultExpression: 'celebrating',
@@ -617,82 +616,33 @@ export const DEFAULT_CONFIG: StudioConfig = {
       '⚠️ Distress signal detected. The scripted flow / activity / LLM call was bypassed and a fixed compassionate response was spoken. Please notify the on-shift caregiver before continuing the session.',
   },
 
-  musicPreferences: {
-    maxVolumeGlobal: 70,
-    avoidGenres: ['heavy metal', 'explicit hip-hop', 'horror soundscapes'],
-    notes: 'Prefer gentle dynamics. Sudden loud sounds can startle or distress. Fade in/out all audio.',
-  },
+  musicPreferences: [
+    {
+      minAge: 3,
+      maxAge: 5,
+      maxVolume: 55,
+      allowlist: ['lullaby', 'soft-classical', 'nature-sounds'],
+      blocklist: ['heavy metal', 'explicit hip-hop', 'horror soundscapes'],
+      avoidNotes: 'Very gentle dynamics. No sudden loud sounds. Slow tempos. Fade in/out all audio.',
+    },
+    {
+      minAge: 6,
+      maxAge: 9,
+      maxVolume: 65,
+      allowlist: ['soft-classical', 'playful-pop', 'nature-sounds', 'world-percussion'],
+      blocklist: ['heavy metal', 'explicit hip-hop', 'horror soundscapes'],
+      avoidNotes: 'Prefer gentle dynamics. Mid-tempo OK. Avoid jarring stings.',
+    },
+    {
+      minAge: 10,
+      maxAge: 99,
+      maxVolume: 75,
+      allowlist: ['classical', 'indie-pop', 'ambient', 'lo-fi', 'world', 'soundtrack'],
+      blocklist: ['heavy metal', 'explicit hip-hop', 'horror soundscapes'],
+      avoidNotes: 'Tolerates more dynamic range; still no jump-scares or aggressive distortion.',
+    },
+  ],
 };
-
-// ── Persona seeds ─────────────────────────────────────────────────────────────
-
-export const ZI_PERSONA: Persona = {
-  id: '22222222-0000-4000-8000-000000000001',
-  partitionKey: 'persona',
-  name: 'Zi',
-  ageYears: 3,
-  backstory: 'Zi is 3 years old and loves butterflies — she has butterfly drawings all over her room. She is in hospital for observation and is generally calm but gets quiet when overwhelmed. Her favourite thing is when people hum softly.',
-  communicationAbility: 'limited-verbal',
-  mobilityNotes: 'Can reach and touch nearby objects. Sits comfortably propped up.',
-  sensoryProfile: 'Sensitive to sudden loud sounds. Responds strongly to gentle rhythm. Enjoys tactile descriptions (soft, fluffy, warm). Short attention span — 2–3 minutes per activity.',
-  likes: ['butterflies', 'soft humming', 'peek-a-boo', 'feeling warm blankets', 'gentle hand gestures'],
-  dislikes: ['loud sudden sounds', 'bright lights', 'strangers touching her', 'long silences with no sound'],
-  musicPreferences: {
-    allowlist: ['soft classical', 'lullabies', 'gentle piano', 'nature sounds with music'],
-    blocklist: ['rock', 'pop with loud beats', 'electronic', 'brass'],
-    maxVolume: 45,
-    avoidNotes: 'No sudden tempo changes. Prefer pieces with very gentle dynamics throughout.',
-  },
-  avatarEmoji: '🦋',
-  createdAt: '2026-05-27T00:00:00.000Z',
-  updatedAt: '2026-05-27T00:00:00.000Z',
-};
-
-export const YUHAN_PERSONA: Persona = {
-  id: '22222222-0000-4000-8000-000000000002',
-  partitionKey: 'persona',
-  name: 'Yuhan',
-  ageYears: 12,
-  backstory: 'Yuhan is 12 and has been using a wheelchair for two years after a spinal injury. He is sharp, funny, and reads music magazines. He listens to rock and emotional pop and gets annoyed when adults talk down to him. He has a dry sense of humour.',
-  communicationAbility: 'verbal',
-  mobilityNotes: 'Uses a power wheelchair. Full arm mobility. No restrictions on hand use. Prefers activities that don\'t emphasise physical limitations.',
-  sensoryProfile: 'No sensory sensitivities. Prefers headphones. Can handle complex audio and lyrics. Attention span is long when engaged.',
-  likes: ['rock music', 'emotional lyrics', 'honest conversation', 'being treated as an equal', 'dry humour', 'music trivia'],
-  dislikes: ['baby talk', 'being patronised', 'fake cheerfulness', 'being asked about his wheelchair unprompted', 'music that\'s "too nice"'],
-  musicPreferences: {
-    allowlist: ['rock', 'emotional pop', 'alternative', 'post-rock', 'cinematic scores'],
-    blocklist: ['children\'s songs', 'lullabies', 'overly upbeat pop'],
-    maxVolume: 75,
-    avoidNotes: 'Yuhan prefers music with emotional depth. Do not shy away from minor keys or emotional intensity.',
-  },
-  avatarEmoji: '🎸',
-  createdAt: '2026-05-27T00:00:00.000Z',
-  updatedAt: '2026-05-27T00:00:00.000Z',
-};
-
-export const ZAIWA_PERSONA: Persona = {
-  id: '22222222-0000-4000-8000-000000000003',
-  partitionKey: 'persona',
-  name: 'Zaiwa',
-  ageYears: 7,
-  backstory: 'Zaiwa is 7 and loves pop songs — she knows all the words. She has reduced grip strength in both hands following surgery, which makes her frustrated when she can\'t clap along. She sings to herself when she thinks no one is listening.',
-  communicationAbility: 'verbal',
-  mobilityNotes: 'Reduced hand grip — cannot clap or hold objects firmly. Full arm range of motion. Can tap rhythms with palms or elbows.',
-  sensoryProfile: 'Enjoys bright, catchy music. Responds to call-and-response patterns. Gets frustrated easily when she can\'t participate physically the way she wants.',
-  likes: ['pop songs she knows', 'singing along', 'call-and-response', 'upper-body dancing', 'palm-tapping rhythms'],
-  dislikes: ['activities that require holding things', 'being told to just listen', 'slow-tempo music when she\'s energetic', 'being reminded of her hand limitations'],
-  musicPreferences: {
-    allowlist: ['pop', 'Mandarin pop', 'C-pop', 'upbeat children\'s songs with singable lyrics'],
-    blocklist: ['classical without melody', 'instrumental only when she wants to sing', 'slow ballads when energy is high'],
-    maxVolume: 65,
-    avoidNotes: 'Zaiwa wants to participate, not just listen. Prioritise songs with simple singable lyrics and palm-tap friendly rhythms.',
-  },
-  avatarEmoji: '🎤',
-  createdAt: '2026-05-27T00:00:00.000Z',
-  updatedAt: '2026-05-27T00:00:00.000Z',
-};
-
-export const ALL_PERSONAS: Persona[] = [ZI_PERSONA, YUHAN_PERSONA, ZAIWA_PERSONA];
 
 // ── Bootstrap (called on server startup) ─────────────────────────────────────
 

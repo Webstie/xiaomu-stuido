@@ -38,12 +38,14 @@ const SCHEMAS = {
     labels: ['yes', 'no'] as const,
     instruction:
       'Does the user text express CLEAR direct intent to (a) start one of these activities — ' +
-      'breathing exercise (呼吸练习), body rhythm (身体律动), emotion-to-music (情绪音乐), ' +
-      'co-creation of music (音乐创作) — OR (b) skip the current intro / game / scripted ' +
-      'question to do something else? ' +
+      'breathing (呼吸练习), body rhythm (身体小乐队 / 身体律动), ' +
+      'music mood guessing (音乐心情猜猜猜 / 情绪-音乐映射), ' +
+      'three notes turn into magic (三个音符变魔法 / 共创编曲) — OR (b) skip the current intro / ' +
+      'game / scripted question to do something else? ' +
       'Reply with exactly ONE word: yes or no.\n' +
-      'Examples that are YES: "我想创作音乐", "想做身体律动", "可以做呼吸练习吗", ' +
-      '"我们直接玩音乐吧", "我想做音乐探险", "跳过", "skip", "i want to make music".\n' +
+      'Examples that are YES: "我想创作音乐", "三个音符变魔法", "想做身体小乐队", ' +
+      '"想做身体律动", "可以做呼吸练习吗", "音乐心情猜猜猜", "我们直接玩音乐吧", ' +
+      '"我想做音乐探险", "跳过", "skip", "i want to make music".\n' +
       'Examples that are NO (just answering the scripted question): ' +
       '"是" / "不是" (yes/no to a question), "我7岁" (giving age), "晴天" / "雨天" (weather), ' +
       '"我拍完啦" (finishing rhythm game), "鸡" / "狗" / "鸟" (sound-detective guess), ' +
@@ -107,14 +109,17 @@ const SCHEMAS = {
       'A child was just offered a short list of music-therapy mini-games and asked which one ' +
       'they want to learn about. Classify their reply into one of the 4 game IDs. ' +
       'Reply with exactly ONE word from: rhythm, co-creation, breathing, emotion-mapping, unclear.\n' +
-      'Examples that are RHYTHM (节奏练习 / 身体律动): "节奏练习", "身体律动", "rhythm", ' +
-      '"我想拍节奏", "动一动", "拍手那个", "body rhythm".\n' +
-      'Examples that are CO-CREATION (共创编曲): "共创编曲", "co-creation", "编曲", "创作音乐", ' +
+      'Examples that are RHYTHM (身体小乐队 — also 节奏练习 / 身体律动): "身体小乐队", ' +
+      '"小乐队", "身体乐队", "节奏练习", "身体律动", "rhythm", "我想拍节奏", "动一动", ' +
+      '"拍手那个", "拍手跺脚", "body rhythm".\n' +
+      'Examples that are CO-CREATION (三个音符变魔法 — also 共创编曲): "三个音符变魔法", ' +
+      '"音符变魔法", "变魔法", "三个音符", "共创编曲", "co-creation", "编曲", "创作音乐", ' +
       '"我想做音乐", "选音符", "创作".\n' +
       'Examples that are BREATHING (呼吸练习): "呼吸练习", "呼吸", "breathing", "深呼吸", ' +
       '"我想做呼吸", "吸气吐气".\n' +
-      'Examples that are EMOTION-MAPPING (情绪-音乐映射): "情绪-音乐映射", "情绪映射", ' +
-      '"emotion mapping", "情绪音乐", "猜心情", "听音乐猜".\n' +
+      'Examples that are EMOTION-MAPPING (音乐心情猜猜猜 — also 情绪-音乐映射): ' +
+      '"音乐心情猜猜猜", "心情猜猜猜", "心情猜猜", "猜心情", "情绪-音乐映射", "情绪映射", ' +
+      '"emotion mapping", "情绪音乐", "听音乐猜".\n' +
       'Examples that are UNCLEAR: "好", "嗯", "试一试", "我不知道", "都可以", "看其他", ' +
       'unrelated chat. When unsure, choose unclear.',
   },

@@ -2,7 +2,7 @@
  * VoiceLiveClient — manages the browser side of a Voice Live session.
  *
  * Flow:
- *  1. connect(personaId, configId) → opens WS through Vite proxy → server → Azure Voice Live
+ *  1. connect(childAge, configId) → opens WS through Vite proxy → server → Azure Voice Live
  *  2. startRecording() → requests mic permission, loads AudioWorklet, streams PCM16 to server
  *  3. stopRecording() → sends input_audio_buffer.commit; server/Azure VAD handles turn end
  *  4. Incoming audio played via VoiceLivePlayback (gapless PCM16 scheduling)
@@ -53,11 +53,11 @@ export class VoiceLiveClient {
     this.playback = new VoiceLivePlayback();
   }
 
-  connect(personaId: string, configId = 'default'): void {
+  connect(childAge: number, configId = 'default'): void {
     // Use the Vite dev proxy (ws: true) so the browser connects to :5173 which
     // proxies the WebSocket upgrade to the Fastify server at :8787.
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const url = `${wsProtocol}//${window.location.host}/api/voice-live?personaId=${encodeURIComponent(personaId)}&configId=${encodeURIComponent(configId)}`;
+    const url = `${wsProtocol}//${window.location.host}/api/voice-live?childAge=${childAge}&configId=${encodeURIComponent(configId)}`;
 
     this.ws = new WebSocket(url);
 

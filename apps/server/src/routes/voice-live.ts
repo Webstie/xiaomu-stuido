@@ -1,7 +1,7 @@
 /**
  * /api/voice-live — WebSocket proxy between browser and Azure Voice Live.
  *
- * Browser connects to ws://localhost:5173/api/voice-live?configId=default&personaId=<uuid>
+ * Browser connects to ws://localhost:5173/api/voice-live?configId=default&childAge=<n>
  * (Vite proxies the upgrade to ws://localhost:8787/api/voice-live)
  *
  * Server opens Azure Voice Live WS with api-key, initialises session with assembled system prompt,
@@ -16,7 +16,7 @@
 
 import WebSocket from 'ws';
 import type { FastifyInstance } from 'fastify';
-import type { StudioConfig, Persona } from '@xiaomu/contracts';
+import type { StudioConfig } from '@xiaomu/contracts';
 import { assembleSystemPrompt } from '../lib/assembleSystemPrompt.js';
 import { createClauseClassifier } from '../lib/clauseSentiment.js';
 import { readJson } from '../lib/fileStore.js';
@@ -25,11 +25,12 @@ export async function registerVoiceLiveRoute(app: FastifyInstance): Promise<void
   app.get('/api/voice-live', { websocket: true }, async (browserSocket, request) => {
     const query = request.query as Record<string, string | undefined>;
     const configId = query['configId'] ?? 'default';
-    const personaId = query['personaId'];
+    const childAgeStr = query['childAge'];
+    const childAge = childAgeStr ? parseInt(childAgeStr, 10) : NaN;
 
-    if (!personaId) {
-      browserSocket.send(JSON.stringify({ type: 'xi.error', message: 'personaId query param is required' }));
-      browserSocket.close(1008, 'Missing personaId');
+    if (!Number.isFinite(childAge) || childAge < 1 || childAge > 120) {
+      browserSocket.send(JSON.stringify({ type: 'xi.error', message: 'childAge query param is required (1–120)' }));
+      browserSocket.close(1008, 'Missing childAge');
       return;
     }
 
@@ -41,16 +42,8 @@ export async function registerVoiceLiveRoute(app: FastifyInstance): Promise<void
       return;
     }
 
-    // Load persona
-    const persona = await readJson<Persona>(`personas/${personaId}.json`);
-    if (!persona) {
-      browserSocket.send(JSON.stringify({ type: 'xi.error', message: `Persona '${personaId}' not found` }));
-      browserSocket.close(1008, 'Persona not found');
-      return;
-    }
-
     // Assemble system prompt
-    const systemPrompt = assembleSystemPrompt(config, persona);
+    const systemPrompt = assembleSystemPrompt(config, childAge);
 
     // Build Azure OpenAI Realtime API URL
     // Voice Live uses the Foundry (Azure OpenAI) endpoint, not the Speech endpoint.
@@ -69,7 +62,7 @@ export async function registerVoiceLiveRoute(app: FastifyInstance): Promise<void
     const wsBase = foundryEndpoint.replace(/^https?:\/\//, '');
     const azureUrl = `wss://${wsBase}/openai/realtime?api-version=${encodeURIComponent(apiVersion)}&deployment=${encodeURIComponent(deployment)}`;
 
-    request.log.info({ personaId, configId, deployment, apiVersion, wsBase }, 'Opening Azure Voice Live connection');
+    request.log.info({ childAge, configId, deployment, apiVersion, wsBase }, 'Opening Azure Voice Live connection');
 
     const azureWs = new WebSocket(azureUrl, { headers: { 'api-key': key } });
     let sessionInitialized = false;

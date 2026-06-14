@@ -1,7 +1,7 @@
 /**
  * POST /api/chat — SSE streaming chat via Azure AI Foundry (OpenAI-compatible).
  *
- * Body:  { configId, personaId, messages, activityContext? }
+ * Body:  { configId, childAge, messages, activityContext? }
  * Stream:
  *   data: { type: 'text',       delta: string }
  *   data: { type: 'expression', timeline: ExpressionEvent[] }
@@ -20,7 +20,7 @@ import type { FastifyInstance } from 'fastify';
 import { AzureOpenAI } from 'openai';
 import { z } from 'zod';
 import { ActivityContextSchema } from '@xiaomu/contracts';
-import type { StudioConfig, Persona } from '@xiaomu/contracts';
+import type { StudioConfig } from '@xiaomu/contracts';
 import { assembleSystemPrompt } from '../lib/assembleSystemPrompt.js';
 import { createClauseClassifier } from '../lib/clauseSentiment.js';
 import { readJson } from '../lib/fileStore.js';
@@ -54,9 +54,16 @@ const MessageSchema = z.object({
 
 const ChatBodySchema = z.object({
   configId:        z.string().default('default'),
-  personaId:       z.string(),
+  childAge:        z.number().int().min(1).max(120),
   messages:        z.array(MessageSchema).min(1),
   activityContext: ActivityContextSchema.optional(),
+  /**
+   * Set by the studio when the front-line risk classifier flagged the
+   * incoming user turn as `concerning` (distressed but not in crisis). The
+   * server appends a one-turn system note that forbids start_activity and
+   * steers the model toward warm comfort + naming a trusted adult.
+   */
+  concerningMode:  z.boolean().optional(),
 });
 
 // ── Tool definitions ──────────────────────────────────────────────────────────
@@ -150,7 +157,7 @@ interface StartActivityResult {
   sectionNumber?: number;
   totalSections?: number;
   speakingInstruction?: string;
-  personaAge?: number;
+  childAge?: number;
   matchedBucket?: { minAge: number; maxAge: number } | null;
   /** Set to true when the activity is interactive and not section-driven (co-creation). */
   interactive?: boolean;
@@ -262,7 +269,7 @@ async function resolvePlayMelody(
 function resolveStartActivity(
   args: { activity_id?: string },
   config: StudioConfig,
-  persona: Persona,
+  childAge: number,
 ): StartActivityResult {
   const id = args.activity_id;
   if (!id) return { ok: false, error: 'activity_id missing' };
@@ -299,7 +306,7 @@ function resolveStartActivity(
       activityName: activity.name,
       activityType: activity.type,
       audioPlaylist: [],
-      personaAge: persona.ageYears,
+      childAge,
       matchedBucket: null,
       interactive: true,
       currentSectionText: stage1,
@@ -311,12 +318,12 @@ function resolveStartActivity(
     };
   }
 
-  const resolved = resolveActivityScript(activity, persona);
+  const resolved = resolveActivityScript(activity, childAge);
   if (resolved) {
     audioPlaylist = resolved.audioPlaylist;
     if (resolved.kind === 'age' && activity.scripted) {
       const bucket = activity.scripted.ageBuckets.find(
-        (b) => persona.ageYears >= b.minAge && persona.ageYears <= b.maxAge,
+        (b) => childAge >= b.minAge && childAge <= b.maxAge,
       );
       if (bucket) matchedBucket = { minAge: bucket.minAge, maxAge: bucket.maxAge };
     }
@@ -343,7 +350,7 @@ function resolveStartActivity(
     activityName: activity.name,
     activityType: activity.type,
     audioPlaylist,
-    personaAge: persona.ageYears,
+    childAge,
     matchedBucket,
     ...(sectionBlock ?? {}),
   };
@@ -370,15 +377,11 @@ export async function registerChatRoute(app: FastifyInstance): Promise<void> {
     if (!parseResult.success) {
       return reply.status(400).send({ error: 'Invalid request', details: parseResult.error.flatten() });
     }
-    const { configId, personaId, messages, activityContext: rawActivityContext } = parseResult.data;
+    const { configId, childAge, messages, activityContext: rawActivityContext, concerningMode } = parseResult.data;
 
     const config = await readJson<StudioConfig>(`configs/${configId}.json`);
     if (!config) {
       return reply.status(404).send({ error: `Config not found: ${configId}` });
-    }
-    const persona = await readJson<Persona>(`personas/${personaId}.json`);
-    if (!persona) {
-      return reply.status(404).send({ error: `Persona not found: ${personaId}` });
     }
 
     // Patch the activityContext for co-creation: trust whichever of the
@@ -398,13 +401,30 @@ export async function registerChatRoute(app: FastifyInstance): Promise<void> {
       activityContext = { ...activityContext, coCreationLastVariant: chosen };
     }
 
-    const systemPrompt = assembleSystemPrompt(config, persona, activityContext);
-    const temperature = activityContext?.therapyMode
+    const systemPrompt = assembleSystemPrompt(config, childAge, activityContext);
+    // concerningMode lowers temperature to therapy levels regardless of the
+    // activityContext flag — the front-line risk classifier saw something
+    // distressing, so we want a calm, grounded reply for this turn.
+    const temperature = (activityContext?.therapyMode || concerningMode)
       ? config.personality.therapyTemperature
       : config.personality.defaultTemperature;
 
+    const CONCERNING_MODE_NOTE =
+      '⚠ The front-line safety classifier flagged the child\'s most recent ' +
+      'message as CONCERNING — distressed but not in acute crisis. For this ' +
+      'turn ONLY:\n' +
+      '• Do NOT call start_activity. Do NOT propose activities or games.\n' +
+      '• Mirror the feeling first, in 1–2 short sentences. No fake cheer.\n' +
+      '• Gently suggest the child tell a trusted adult (nurse, doctor, parent, ' +
+      'family member) what they\'re feeling. Frame it as a partnership: ' +
+      '"我们可以一起告诉…", not an order.\n' +
+      '• End with a brief promise of presence — "我在这里陪你". One sentence max.\n' +
+      '• Keep the whole reply under 4 short sentences. No questions about ' +
+      'colors, weather, animals, or mood metaphors.';
+
     const oaiMessages: OAIMessage[] = [
       { role: 'system', content: systemPrompt },
+      ...(concerningMode ? [{ role: 'system', content: CONCERNING_MODE_NOTE }] : []),
       ...messages.map((m) => ({ role: m.role, content: m.content })),
     ];
 
@@ -422,7 +442,7 @@ export async function registerChatRoute(app: FastifyInstance): Promise<void> {
       raw.write(`data: ${JSON.stringify(data)}\n\n`);
     };
 
-    const log = request.log.child({ route: 'chat', configId, personaId });
+    const log = request.log.child({ route: 'chat', configId, childAge });
 
     try {
       const client = getClient();
@@ -431,14 +451,16 @@ export async function registerChatRoute(app: FastifyInstance): Promise<void> {
       let completionTokens = 0;
 
       // Tool exposure:
-      //   • start_activity → only when no activity is running yet
+      //   • start_activity → only when no activity is running yet AND not in concerning mode
       //   • play_melody / end_activity → only when co-creation is the active activity
       //     (other scripted activities don't need these and we don't want the model
       //     to call them accidentally)
+      // concerningMode strips start_activity entirely so the model cannot route
+      // a distressed child into an activity instead of acknowledging the feeling.
       const activityAlreadyActive = Boolean(activityContext?.activityId);
       const inCoCreation = activityContext?.activityId === 'co-creation';
       const turnTools: Array<typeof START_ACTIVITY_TOOL | typeof PLAY_MELODY_TOOL | typeof END_ACTIVITY_TOOL> = [];
-      if (!activityAlreadyActive) turnTools.push(START_ACTIVITY_TOOL);
+      if (!activityAlreadyActive && !concerningMode) turnTools.push(START_ACTIVITY_TOOL);
       if (inCoCreation) turnTools.push(PLAY_MELODY_TOOL, END_ACTIVITY_TOOL);
 
       // Co-creation: force the right tool on iter 0 based on the explicit stage.
@@ -471,7 +493,7 @@ export async function registerChatRoute(app: FastifyInstance): Promise<void> {
         if (!activityContext?.activityId) return null;
         const activity = config!.activities.find((a) => a.id === activityContext.activityId);
         if (!activity) return null;
-        const resolved = resolveActivityScript(activity, persona!);
+        const resolved = resolveActivityScript(activity, childAge);
         if (!resolved) return null;
         const idx = activityContext.sectionIndex ?? 0;
         if (idx >= resolved.sections.length) return null;
@@ -626,7 +648,7 @@ export async function registerChatRoute(app: FastifyInstance): Promise<void> {
 
           let result: StartActivityResult | PlayMelodyResult | EndActivityResult;
           if (tc.name === 'start_activity') {
-            result = resolveStartActivity(args as { activity_id?: string }, config, persona);
+            result = resolveStartActivity(args as { activity_id?: string }, config, childAge);
           } else if (tc.name === 'play_melody') {
             // Server-authoritative variant override: stage > model.
             // ccVariant tells us what was JUST played; the next play call is the next variant.
@@ -725,15 +747,15 @@ export async function registerChatRoute(app: FastifyInstance): Promise<void> {
 
   // ── GET /api/system-prompt — for TestChat disclosure widget ──────────────
   app.get('/api/system-prompt', async (request, reply) => {
-    const { configId = 'default', personaId } = request.query as Record<string, string>;
-    if (!personaId) return reply.status(400).send({ error: 'personaId required' });
+    const { configId = 'default', childAge } = request.query as Record<string, string>;
+    const ageNum = childAge ? parseInt(childAge, 10) : NaN;
+    if (!Number.isFinite(ageNum) || ageNum < 1 || ageNum > 120) {
+      return reply.status(400).send({ error: 'childAge query param required (1–120)' });
+    }
 
     const config = await readJson<StudioConfig>(`configs/${configId}.json`);
     if (!config) return reply.status(404).send({ error: `Config not found: ${configId}` });
 
-    const persona = await readJson<Persona>(`personas/${personaId}.json`);
-    if (!persona) return reply.status(404).send({ error: `Persona not found: ${personaId}` });
-
-    return { systemPrompt: assembleSystemPrompt(config, persona) };
+    return { systemPrompt: assembleSystemPrompt(config, ageNum) };
   });
 }

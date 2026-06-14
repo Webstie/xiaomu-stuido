@@ -2,18 +2,12 @@
  * Typed API client for the Xiaomu server.
  * All requests go through Vite's proxy (/api → http://localhost:8787).
  */
-import type { Persona, StudioConfig } from '@xiaomu/contracts';
+import type { StudioConfig } from '@xiaomu/contracts';
 import type { ExpressionEvent } from './chatStream.js';
 
 export type { ExpressionEvent };
 
 // ── REST ──────────────────────────────────────────────────────────────────────
-
-export async function fetchPersonas(): Promise<Persona[]> {
-  const res = await fetch('/api/personas');
-  if (!res.ok) throw new Error(`GET /api/personas: ${res.status}`);
-  return res.json() as Promise<Persona[]>;
-}
 
 export async function fetchConfig(id = 'default'): Promise<StudioConfig> {
   const res = await fetch(`/api/config/${id}`);
@@ -65,8 +59,31 @@ export async function classifyIntent(
   return data.label;
 }
 
-export async function fetchSystemPrompt(personaId: string, configId = 'default'): Promise<string> {
-  const url = `/api/system-prompt?configId=${encodeURIComponent(configId)}&personaId=${encodeURIComponent(personaId)}`;
+// ── Front-line risk classifier (runs on every user turn) ─────────────────────
+
+export type RiskLevel = 'safe' | 'concerning' | 'high_risk';
+
+export interface RiskAssessment {
+  emotion: string;
+  risk_level: RiskLevel;
+}
+
+export async function assessUserRisk(text: string): Promise<RiskAssessment> {
+  const res = await fetch('/api/risk-assess', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  });
+  if (!res.ok) {
+    // Fail safe — never block a turn because the classifier endpoint hiccuped.
+    // The keyword filter still runs as the second layer.
+    return { emotion: 'neutral', risk_level: 'safe' };
+  }
+  return res.json() as Promise<RiskAssessment>;
+}
+
+export async function fetchSystemPrompt(childAge: number, configId = 'default'): Promise<string> {
+  const url = `/api/system-prompt?configId=${encodeURIComponent(configId)}&childAge=${childAge}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`GET /api/system-prompt: ${res.status}`);
   const data = (await res.json()) as { systemPrompt: string };

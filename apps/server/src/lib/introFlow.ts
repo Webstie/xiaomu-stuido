@@ -60,10 +60,10 @@ export const RE_ASK_WEATHER =
   '嗯,我没太听明白。哪个天气更代表你现在的心情呢?';
 
 export const SUNNY_RECOMMENDATION =
-  '原来是晴天啊!阳光好的日子,身体也想跟着动起来呢。我来给你推荐两个小游戏吧:节奏练习(Rhythm Practice)和共创编曲(Co-creation)。你有哪一个小游戏感兴趣吗?请告诉我这个游戏的名字,我可以简单给你介绍一下。';
+  '原来是晴天啊!阳光好的日子,身体也想跟着动起来呢。我来给你推荐两个小游戏吧:身体小乐队和三个音符变魔法。你对哪一个小游戏感兴趣呢?请告诉我这个游戏的名字,我可以简单给你介绍一下。';
 
 export function quietRecommendation(weatherWord: string): string {
-  return `原来是${weatherWord}啊。这种天气适合安安静静地和自己待一会儿。我来给你推荐三个小练习吧:呼吸练习(Breathing Exercise)、情绪-音乐映射(Emotional-to-Music Mapping)和共创编曲(Co-creation)。你有哪一个小游戏感兴趣吗?请告诉我这个游戏的名字,我可以简单给你介绍一下。`;
+  return `原来是${weatherWord}啊。这种天气适合安安静静地和自己待一会儿。我来给你推荐三个小练习吧:呼吸练习、音乐心情猜猜猜和三个音符变魔法。你对哪一个小游戏感兴趣呢?请告诉我这个游戏的名字,我可以简单给你介绍一下。`;
 }
 
 // ── Game introduction cards ──────────────────────────────────────────────────
@@ -73,13 +73,13 @@ export const GAME_CARD_BREATHING =
   '呼吸练习——这个练习是跟着音乐慢慢吸气、吐气,让心跳和旋律变成好朋友。做完会觉得身体变轻,心里也安安静静的。';
 
 export const GAME_CARD_EMOTION_MAPPING =
-  '情绪-音乐映射——这个练习是听一小段音乐,猜猜它是什么心情——开心的?还是有点难过?像给音乐贴表情包,慢慢你就能听懂音乐在说什么了。';
+  '音乐心情猜猜猜——这个练习是听一小段音乐,猜猜它是什么心情——开心的?还是有点难过?像给音乐贴表情包,慢慢你就能听懂音乐在说什么了。';
 
 export const GAME_CARD_CO_CREATION =
-  '共创编曲——这个游戏是你选几个音符,系统帮你变成一段小旋律。三个音就能玩出完全不一样的感觉,试试看?';
+  '三个音符变魔法——这个游戏是你选三个音符,系统帮你变成一段小旋律,再用音乐魔法把它变出不一样的样子。三个音就能玩出完全不一样的感觉,试试看?';
 
 export const GAME_CARD_BODY_RHYTHM =
-  '身体律动——这个游戏是把身体当成乐器!拍手、跺脚、打响指,跟着节奏敲出你自己的节拍。不需要乐器,你的身体就是最好的乐队。';
+  '身体小乐队——这个游戏是把身体当成乐器!拍手、跺脚、打响指,跟着节奏敲出你自己的节拍。不需要乐器,你的身体就是最好的乐队。';
 
 export const GAME_DECIDE_PROMPT =
   '你想尝试一下这个小游戏吗?还是想看看其他游戏?如果是的话,请告诉我你想要了解的游戏。';
@@ -90,4 +90,4 @@ export const GAME_START_LINE =
 // Bottom-of-the-funnel: every recommended game has been introduced and the
 // child still wants something else. Hand off to the model.
 export const GAME_POOL_EXHAUSTED_PROMPT =
-  '那你想做什么呢?我们可以做呼吸、身体律动、情绪和音乐、或者一起创作音乐。';
+  '那你想做什么呢?我们可以做呼吸练习、身体小乐队、音乐心情猜猜猜、或者三个音符变魔法。';

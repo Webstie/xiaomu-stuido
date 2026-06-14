@@ -5,9 +5,12 @@
 > - 🟡 **黄色** = Frontend 写死台词（孩子一定会看到这一字不差的句子）
 > - 🔵 **蓝色** = LLM 自由产生（受 system prompt 约束）
 > - 🟢 **绿色** = LLM 强制照念 verbatim（system prompt 锁定原文）
-> - 🟣 **紫色** = Server 注入 speakText（co-creation tool result）
+> - 🟣 **紫色** = Server 注入 speakText（三个音符变魔法 tool result）
 > - 🔴 **红色** = 冲突 / bug（详见 §6）
 > - ⚪ **灰色** = Classifier 决策点
+>
+> **活动名速查**（内部 ID → 显示名）：
+> `breathing` → 呼吸练习 · `body-rhythm` → 身体小乐队 · `emotion-music-mapping` → 音乐心情猜猜猜 · `co-creation` → 三个音符变魔法
 
 ---
 
@@ -142,7 +145,7 @@ flowchart TD
 
 ---
 
-## 图 4 · 活动内对话（breathing / body-rhythm / emotion-music-mapping）
+## 图 4 · 活动内对话（呼吸练习 / 身体小乐队 / 音乐心情猜猜猜）
 
 ```mermaid
 flowchart TD
@@ -186,7 +189,7 @@ flowchart TD
 
 ---
 
-## 图 5 · Co-creation 6 Stage 状态机（最复杂活动）
+## 图 5 · 三个音符变魔法 6 Stage 状态机（最复杂活动 · co-creation）
 
 ```mermaid
 flowchart TD
@@ -342,12 +345,12 @@ flowchart TD
   Phase2 --> P2D[session closing 4 选 1 ·蓝]
   Phase2 --> P2E[session opening dead code ·红]
 
-  Phase3 --> P3A[breathing narrationScript ·绿<br/>LLM 强制照念<br/>12 岁会崩 ·红]
-  Phase3 --> P3B[body-rhythm narrationScript ·绿]
-  Phase3 --> P3C[emotion-music narrationScript ·绿]
-  Phase3 --> P3D[co-creation Stage 1 opener ·绿]
-  Phase3 --> P3E[co-creation Stage 2/4/5/6 system prompt 锁定 ·绿]
-  Phase3 --> P3F[co-creation play_melody / end_activity speakText ·紫]
+  Phase3 --> P3A[呼吸练习 narrationScript ·绿<br/>仅 0-7 bucket 有文本<br/>8-12 / 13-18 待补 ·红]
+  Phase3 --> P3B[身体小乐队 narrationScript ·绿]
+  Phase3 --> P3C[音乐心情猜猜猜 narrationScript ·绿]
+  Phase3 --> P3D[三个音符变魔法 Stage 1 opener ·绿]
+  Phase3 --> P3E[三个音符变魔法 Stage 2/4/5/6 system prompt 锁定 ·绿]
+  Phase3 --> P3F[三个音符变魔法 play_melody / end_activity speakText ·紫]
   Phase3 --> P3G[Stage 5 菜单交互假象 ·红]
 
   Phase4 --> P4A[distressResponseScript ·黄]
@@ -380,10 +383,10 @@ flowchart TD
   Root --> Sev2[🟡 中等 6 个<br/>体验混乱]
   Root --> Sev3[🟢 低 6 个<br/>代码清洁度]
 
-  Sev1 --> A[A · gameRoll=2 显示 'game 3'<br/>位置 TestChat.tsx:1454<br/>修 删 gameRoll=2 或实现游戏 3]
-  Sev1 --> B[B · typo 小有些<br/>位置 default.json transitionPhrases<br/>修 改成 小游戏]
+  Sev1 --> A[A · gameRoll=2 显示 'game 3' ✅<br/>被 weather-based 推荐流程取代<br/>cabc928]
+  Sev1 --> B[B · typo 小有些 ✅<br/>已改成 小游戏<br/>0cc3ab3]
   Sev1 --> C[C · Stage 5 菜单假象<br/>位置 assembleSystemPrompt.ts:348<br/>修 删菜单或拆 3 个 melody]
-  Sev1 --> D[D · breathing 12 岁崩<br/>位置 default.json ageBuckets<br/>修 加 8-12 bucket 或 fallback]
+  Sev1 --> D[D · breathing 老年龄段缺 narration ⚠️<br/>bucket 已加但 8-12 / 13-18 narrationScript 空<br/>需要补文本]
 
   Sev2 --> E[E · frontend LLM 双重 yes/no<br/>system prompt opening flow 是 dead instruction]
   Sev2 --> F[F · yes / no 分支热身游戏不一致<br/>第一次见面跳过游戏]

@@ -18,16 +18,16 @@ import {
   Send, ChevronDown, ChevronUp, Copy, Check, Zap, ZapOff,
   Volume2, VolumeX, RotateCcw, Mic, MicOff,
   Play, Pause, SkipForward, X, Activity as ActivityIcon,
-  Trash2, PlayCircle, StopCircle, ShieldAlert,
+  Trash2, PlayCircle, StopCircle, ShieldAlert, Baby,
 } from 'lucide-react';
 import type { ExpressionId } from '@xiaomu/contracts';
 import type {
-  Persona, GameConfig, RhythmStoryGameConfig, SoundDetectiveGameConfig,
+  GameConfig, RhythmStoryGameConfig, SoundDetectiveGameConfig,
   ConversationFlow as ConversationFlowConfig,
   Safety as SafetyConfig,
 } from '@xiaomu/contracts';
 import FaceRenderer from '../face/FaceRenderer.js';
-import { classifyIntent, fetchConfig, fetchPersonas, fetchSystemPrompt, fetchTtsVisemes } from '../api/client.js';
+import { assessUserRisk, classifyIntent, fetchConfig, fetchSystemPrompt, fetchTtsVisemes } from '../api/client.js';
 import { startChatStream } from '../api/chatStream.js';
 import type { ChatMessage, ExpressionEvent } from '../api/chatStream.js';
 import { EXPRESSIONS } from '../face/expressions.js';
@@ -56,6 +56,7 @@ type ScriptedSessionStep =
   | 'first-meeting'
   | 'age'
   | 'age-short'
+  | 'returning-age'
   | 'returning-intro-answer'
   | 'weather-game-choice'
   | 'game-pick'
@@ -79,13 +80,13 @@ interface RecommendedGame {
 const RECOMMENDED_GAMES: Record<RecommendedGameId, RecommendedGame> = {
   'rhythm': {
     activityId: 'body-rhythm',
-    displayName: '身体律动',
-    card: '身体律动——这个游戏是把身体当成乐器!拍手、跺脚、打响指,跟着节奏敲出你自己的节拍。不需要乐器,你的身体就是最好的乐队。',
+    displayName: '身体小乐队',
+    card: '身体小乐队——这个游戏是把身体当成乐器!拍手、跺脚、打响指,跟着节奏敲出你自己的节拍。不需要乐器,你的身体就是最好的乐队。',
   },
   'co-creation': {
     activityId: 'co-creation',
-    displayName: '共创编曲',
-    card: '共创编曲——这个游戏是你选几个音符,系统帮你变成一段小旋律。三个音就能玩出完全不一样的感觉,试试看?',
+    displayName: '三个音符变魔法',
+    card: '三个音符变魔法——这个游戏是你选三个音符,系统帮你变成一段小旋律,再用音乐魔法把它变出不一样的样子。三个音就能玩出完全不一样的感觉,试试看?',
   },
   'breathing': {
     activityId: 'breathing',
@@ -94,8 +95,8 @@ const RECOMMENDED_GAMES: Record<RecommendedGameId, RecommendedGame> = {
   },
   'emotion-mapping': {
     activityId: 'emotion-music-mapping',
-    displayName: '情绪-音乐映射',
-    card: '情绪-音乐映射——这个练习是听一小段音乐,猜猜它是什么心情——开心的?还是有点难过?像给音乐贴表情包,慢慢你就能听懂音乐在说什么了。',
+    displayName: '音乐心情猜猜猜',
+    card: '音乐心情猜猜猜——这个练习是听一小段音乐,猜猜它是什么心情——开心的?还是有点难过?像给音乐贴表情包,慢慢你就能听懂音乐在说什么了。',
   },
 };
 
@@ -103,17 +104,17 @@ const SUNNY_POOL: RecommendedGameId[] = ['rhythm', 'co-creation'];
 const QUIET_POOL: RecommendedGameId[] = ['breathing', 'emotion-mapping', 'co-creation'];
 
 const SUNNY_RECOMMENDATION =
-  '原来是晴天啊!阳光好的日子,身体也想跟着动起来呢。我来给你推荐两个小游戏吧:节奏练习(Rhythm Practice)和共创编曲(Co-creation)。你有哪一个小游戏感兴趣吗?请告诉我这个游戏的名字,我可以简单给你介绍一下。';
+  '原来是晴天啊!阳光好的日子,身体也想跟着动起来呢。我来给你推荐两个小游戏吧:身体小乐队和三个音符变魔法。你对哪一个小游戏感兴趣呢?请告诉我这个游戏的名字,我可以简单给你介绍一下。';
 
 function quietRecommendationLocal(weatherWord: string): string {
-  return `原来是${weatherWord}啊。这种天气适合安安静静地和自己待一会儿。我来给你推荐三个小练习吧:呼吸练习(Breathing Exercise)、情绪-音乐映射(Emotional-to-Music Mapping)和共创编曲(Co-creation)。你有哪一个小游戏感兴趣吗?请告诉我这个游戏的名字,我可以简单给你介绍一下。`;
+  return `原来是${weatherWord}啊。这种天气适合安安静静地和自己待一会儿。我来给你推荐三个小练习吧:呼吸练习、音乐心情猜猜猜和三个音符变魔法。你对哪一个小游戏感兴趣呢?请告诉我这个游戏的名字,我可以简单给你介绍一下。`;
 }
 
 const RE_ASK_WEATHER = '嗯,我没太听明白。哪个天气更代表你现在的心情呢?';
 const GAME_DECIDE_PROMPT = '你想尝试一下这个小游戏吗?还是想看看其他游戏?如果是的话,请告诉我你想要了解的游戏。';
 const GAME_START_LINE = '好啊,那我们现在就开始咯。';
-const GAME_POOL_EXHAUSTED_PROMPT = '那你想做什么呢?我们可以做呼吸、身体律动、情绪和音乐、或者一起创作音乐。';
-const RE_ASK_GAME_NAME = '嗯,我没太确定。你想了解的是节奏练习、共创编曲、呼吸练习,还是情绪-音乐映射呢?';
+const GAME_POOL_EXHAUSTED_PROMPT = '那你想做什么呢?我们可以做呼吸练习、身体小乐队、音乐心情猜猜猜、或者三个音符变魔法。';
+const RE_ASK_GAME_NAME = '嗯,我没太确定。你想了解的是身体小乐队、三个音符变魔法、呼吸练习、还是音乐心情猜猜猜呢?';
 
 type Game2SoundId = 'chicken' | 'wind' | 'rain' | 'dog' | 'bird';
 
@@ -253,6 +254,12 @@ const GAME_2_SOUNDS: Game2Sound[] = [
 ];
 
 const OLD_FRIEND_INTRO_PREFIX = '原来我们是老朋友啊，那我给你分享一下我今天的故事。';
+
+// New old-friend flow splits the recognition: first half + age question;
+// second half ("...那我给你分享我今天的故事") rides on top of the daily story
+// after the child answers their age.
+const OLD_FRIEND_RECOGNITION = '原来我们是老朋友啊！';
+const OLD_FRIEND_AGE_TO_STORY = '好，那我给你分享一下我今天的故事。';
 
 const WEATHER_PROMPT =
   '在我的家乡，我们喜欢用天气来形容我们的心情。\n' +
@@ -413,18 +420,18 @@ function SanitizerPreview({ original, ssml }: SanitizerPreviewProps) {
 
 export default function TestChat() {
   // ── Data loading ────────────────────────────────────────────────────────────
-  const [personas, setPersonas] = useState<Persona[]>([]);
-  const [selectedPersonaId, setSelectedPersonaId] = useState<string>('');
+  // childAge is captured from the kid's reply during the scripted intro
+  // ('age', 'age-short', or 'returning-age' step). Until then it falls back
+  // to AGE_DEFAULT so any early activity-intent bypass still has a valid age
+  // to send to the LLM.
+  const AGE_DEFAULT = 8;
+  const [childAge, setChildAge] = useState<number>(AGE_DEFAULT);
+  const childAgeRef = useRef<number>(AGE_DEFAULT);
+  useEffect(() => { childAgeRef.current = childAge; }, [childAge]);
   const [defaultVoice, setDefaultVoice] = useState<string | undefined>(undefined);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchPersonas()
-      .then((ps) => {
-        setPersonas(ps);
-        if (ps.length > 0 && ps[0]) setSelectedPersonaId(ps[0].id);
-      })
-      .catch((e: unknown) => setLoadError((e as Error).message));
     fetchConfig()
       .then((c) => {
         setDefaultVoice(c.voice.defaultVoice);
@@ -432,7 +439,7 @@ export default function TestChat() {
         convFlowRef.current = c.conversationFlow ?? null;
         safetyRef.current = c.safety ?? null;
       })
-      .catch(() => { /* config errors are non-fatal — TTS falls back to server default */ });
+      .catch((e: unknown) => setLoadError((e as Error).message));
   }, []);
 
   // ── System prompt disclosure ─────────────────────────────────────────────
@@ -442,15 +449,14 @@ export default function TestChat() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    if (!selectedPersonaId) return;
     setSystemPrompt('');
     if (!promptOpen) return;
     setPromptLoading(true);
-    fetchSystemPrompt(selectedPersonaId)
+    fetchSystemPrompt(childAge)
       .then(setSystemPrompt)
       .catch(() => setSystemPrompt('(failed to load system prompt)'))
       .finally(() => setPromptLoading(false));
-  }, [selectedPersonaId, promptOpen]);
+  }, [childAge, promptOpen]);
 
   const handleCopy = useCallback(() => {
     void navigator.clipboard.writeText(systemPrompt).then(() => {
@@ -1114,7 +1120,7 @@ export default function TestChat() {
   // ── Session lifecycle ────────────────────────────────────────────────────
 
   const handleStartChatting = useCallback(() => {
-    if (!selectedPersonaId || sessionActive || streaming || voiceMode || ttsLoading) return;
+    if (sessionActive || streaming || voiceMode || ttsLoading) return;
 
     // Refresh games + conversation-flow + safety config so panel edits made
     // since mount take effect for this session.
@@ -1177,7 +1183,7 @@ export default function TestChat() {
       setStreaming(false);
       setTimeout(() => setFaceExpr('calm'), 500);
     });
-  }, [selectedPersonaId, sessionActive, streaming, voiceMode, ttsLoading, callTts, cancelAutoAdvance]);
+  }, [sessionActive, streaming, voiceMode, ttsLoading, callTts, cancelAutoAdvance]);
 
   const handleEndSession = useCallback(() => {
     cancelRef.current?.();
@@ -1203,68 +1209,115 @@ export default function TestChat() {
   // ── Send message ─────────────────────────────────────────────────────────
   const sendMessage = useCallback(async (overrideText?: string, opts: { silent?: boolean } = {}) => {
     const text = (overrideText ?? input).trim();
-    if (!text || !selectedPersonaId) return;
+    if (!text) return;
     if (!sessionActive) return; // require an active session
 
     cancelAutoAdvance();
 
     if (!opts.silent && !overrideText) setInput('');
 
-    // ── Distress detection ───────────────────────────────────────────────
-    // Highest-priority intercept. Runs on real user input only and short-
-    // circuits everything else (scripted intro, activity quit-check, LLM
-    // call, turn counter). The robot intentionally says NOTHING in response
-    // — speaking would risk improvising the wrong thing in a clinical
-    // moment. Instead we show an error bubble so the operator must step in.
-    if (!opts.silent && !overrideText) {
-      const keywords = safetyRef.current?.distressKeywords ?? [];
-      const lowered = text.toLowerCase();
-      // Bidirectional substring match. The forward case catches longer user
-      // utterances ("我真的不想活了" ⊇ "不想活"). The reverse case catches
-      // shortened forms ("不想活了" ⊂ "我不想活了"). The 2-char minimum on
-      // the reverse side keeps single common characters from false-firing.
-      const triggered = keywords.some((kw) => {
-        const k = kw.trim().toLowerCase();
-        if (k.length < 2) return false;
-        if (lowered.includes(k)) return true;
-        if (lowered.length >= 2 && k.includes(lowered)) return true;
-        return false;
-      });
-      if (triggered) {
-        // Stop any in-flight stream, audio, viseme tick, auto-advance timer,
-        // and active activity — distress overrides the session.
-        cancelRef.current?.();
-        cancelRef.current = null;
-        if (audioRef.current) {
-          audioRef.current.pause();
-          audioRef.current = null;
-        }
-        cancelAnimationFrame(visemeRafRef.current);
-        setVisemePlaybackMs(-1);
-        setVisemeStream([]);
-        if (activeActivityRef.current) endActivity();
+    // ── Two-layer safety check ──────────────────────────────────────────
+    // Runs on real user input only and short-circuits the rest of the
+    // pipeline (scripted intro, activity quit-check, LLM call, turn counter)
+    // whenever either layer trips.
+    //
+    // Layer 1 — Front-line AI risk classifier (/api/risk-assess). Returns
+    //   { emotion, risk_level }. risk_level dispatches:
+    //     high_risk  → block + caregiver banner + end session
+    //     concerning → still call the LLM, but with `concerningMode: true`
+    //                  so it strips activity tools and injects a one-turn
+    //                  comfort + steer-to-trusted-adult system note.
+    //     safe       → fall through normally; emotion drives face expression.
+    //
+    // Layer 2 — Local keyword distress filter (`safetyRef.distressKeywords`).
+    //   Runs even when the AI layer says `safe`, as a deterministic safety
+    //   net for the obvious crisis phrases the model might somehow miss.
+    //
+    // The block path (high_risk OR keyword hit) is shared so transcript +
+    // cleanup behaviour is identical regardless of which layer fired.
+    let concerningModeForThisTurn = false;
+    let safetyBlocked = false;
 
-        const userMsg: Transcript = {
-          id: uid(), role: 'user', content: text, distressTrigger: true,
-        };
-        const errorMsg: Transcript = {
-          id: uid(),
-          role: 'assistant',
-          content:
-            '(Error: Distress signal detected — message blocked by the local safety filter. The robot will not respond. Please notify the on-shift caregiver before continuing.)',
-          distressResponse: true,
-        };
-        setTranscript((prev) => [...prev, userMsg, errorMsg]);
-        // Intentionally NOT appended to apiHistoryRef — the LLM never sees
-        // the distress text and never sees the local block message, so a
-        // later turn can't accidentally resurface the phrase or the error.
-        setDistressFlagged(true);
-        setFaceExpr('anxious');
-        setTimeout(() => setFaceExpr('calm'), 1500);
-        // End the session — operator must restart via Start Chatting.
-        handleEndSession();
-        return;
+    if (!opts.silent && !overrideText) {
+      try {
+        const r = await assessUserRisk(text);
+        if (r.risk_level === 'high_risk') {
+          safetyBlocked = true;
+        } else if (r.risk_level === 'concerning') {
+          concerningModeForThisTurn = true;
+        }
+        // Only drive the face from the emotion when we're not about to
+        // block — a blocked turn forces 'anxious' below regardless.
+        if (!safetyBlocked) {
+          const e = r.emotion;
+          const exprFromEmotion: ExpressionId | null =
+            e === 'happy'    ? 'happy'
+          : e === 'excited'  ? 'excited'
+          : e === 'calm'     ? 'calm'
+          : e === 'curious'  ? 'curious'
+          : e === 'confused' ? 'confused'
+          : e === 'sad'      ? 'sad'
+          : e === 'anxious' || e === 'scared' || e === 'angry' ? 'anxious'
+          : null;
+          if (exprFromEmotion) setFaceExpr(exprFromEmotion);
+        }
+      } catch {
+        // Fail safe — classifier hiccup must NOT block the turn; the keyword
+        // layer below still runs.
       }
+
+      if (!safetyBlocked) {
+        const keywords = safetyRef.current?.distressKeywords ?? [];
+        const lowered = text.toLowerCase();
+        // Bidirectional substring match. The forward case catches longer user
+        // utterances ("我真的不想活了" ⊇ "不想活"). The reverse case catches
+        // shortened forms ("不想活了" ⊂ "我不想活了"). The 2-char minimum on
+        // the reverse side keeps single common characters from false-firing.
+        const triggered = keywords.some((kw) => {
+          const k = kw.trim().toLowerCase();
+          if (k.length < 2) return false;
+          if (lowered.includes(k)) return true;
+          if (lowered.length >= 2 && k.includes(lowered)) return true;
+          return false;
+        });
+        if (triggered) safetyBlocked = true;
+      }
+    }
+
+    if (safetyBlocked) {
+      // Stop any in-flight stream, audio, viseme tick, auto-advance timer,
+      // and active activity — distress overrides the session.
+      cancelRef.current?.();
+      cancelRef.current = null;
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      cancelAnimationFrame(visemeRafRef.current);
+      setVisemePlaybackMs(-1);
+      setVisemeStream([]);
+      if (activeActivityRef.current) endActivity();
+
+      const userMsg: Transcript = {
+        id: uid(), role: 'user', content: text, distressTrigger: true,
+      };
+      const errorMsg: Transcript = {
+        id: uid(),
+        role: 'assistant',
+        content:
+          '(Error: Distress signal detected — message blocked by the local safety filter. The robot will not respond. Please notify the on-shift caregiver before continuing.)',
+        distressResponse: true,
+      };
+      setTranscript((prev) => [...prev, userMsg, errorMsg]);
+      // Intentionally NOT appended to apiHistoryRef — the LLM never sees
+      // the distress text and never sees the local block message, so a
+      // later turn can't accidentally resurface the phrase or the error.
+      setDistressFlagged(true);
+      setFaceExpr('anxious');
+      setTimeout(() => setFaceExpr('calm'), 1500);
+      // End the session — operator must restart via Start Chatting.
+      handleEndSession();
+      return;
     }
 
     // Kick off goodbye-intent classification in parallel; consume later.
@@ -1367,8 +1420,11 @@ export default function TestChat() {
             let nextStep: ScriptedSessionStep;
 
             if (label === 'no') {
-              fixedReply = `${getOldFriendIntroPrefix()}\n\n${pickReturningIntroFromConfig()}`;
-              nextStep = 'returning-intro-answer';
+              // Old-friend flow: ack only, then age question. The daily story
+              // is held off until the child answers their age in the
+              // 'returning-age' step below.
+              fixedReply = `${OLD_FRIEND_RECOGNITION}\n\n${getAgePrompt()}`;
+              nextStep = 'returning-age';
             } else if (label === 'yes') {
               fixedReply = `${getStartChattingIntro()}\n\n${getAgePrompt()}`;
               nextStep = 'age';
@@ -1411,6 +1467,19 @@ export default function TestChat() {
       const weatherPrompt = isShort ? getShortWeatherPrompt() : getWeatherPrompt();
       const nextStep: ScriptedSessionStep = isShort ? 'weather-game-choice' : 'none';
 
+      // Persist the kid's age as the source-of-truth for all subsequent
+      // LLM + Voice Live + system-prompt calls this session. First digit run
+      // in [1, 120] wins; if the kid types nothing parseable we keep the
+      // existing default and the model still gets a usable age bucket.
+      const ageMatch = text.match(/\d+/);
+      if (ageMatch) {
+        const parsed = parseInt(ageMatch[0], 10);
+        if (parsed >= 1 && parsed <= 120) {
+          setChildAge(parsed);
+          childAgeRef.current = parsed;
+        }
+      }
+
       const userMsg: Transcript = { id: uid(), role: 'user', content: text };
       setTranscript((prev) => [...prev, userMsg]);
       apiHistoryRef.current = [...apiHistoryRef.current, { role: 'user', content: text }];
@@ -1435,10 +1504,55 @@ export default function TestChat() {
       return;
     }
 
-    // ── Step 'returning-intro-answer' → mood reply + weather prompt ──────
-    // Returning visitors skip the age question — we already know them. Mood
-    // mirror + short weather picker go out in a single bubble, then we jump
-    // straight to the mini-game choice.
+    // ── Step 'returning-age' → ack age + daily story ───────────────────────
+    // Returning visitor just answered their age. Parse the digits the same way
+    // the new-friend 'age' step does so the LLM gets a fresh childAge for the
+    // remainder of the session, then transition by echoing the story-preamble
+    // line ("好,那我给你分享一下我今天的故事。") and dropping a daily story
+    // underneath. The next step mirrors the original returning flow:
+    // 'returning-intro-answer'.
+    if (effectiveStep === 'returning-age') {
+      const ageMatch = text.match(/\d+/);
+      if (ageMatch) {
+        const parsed = parseInt(ageMatch[0], 10);
+        if (parsed >= 1 && parsed <= 120) {
+          setChildAge(parsed);
+          childAgeRef.current = parsed;
+        }
+      }
+
+      const userMsg: Transcript = { id: uid(), role: 'user', content: text };
+      setTranscript((prev) => [...prev, userMsg]);
+      apiHistoryRef.current = [...apiHistoryRef.current, { role: 'user', content: text }];
+      setStreaming(true);
+      setFaceExpr('thinking');
+
+      void dispatchScriptedOrBypass({ userMsgId: userMsg.id }, async () => {
+        const story = pickReturningIntroFromConfig();
+        const fixedReply = `${OLD_FRIEND_AGE_TO_STORY}\n\n${story}`;
+        const replyMsg: Transcript = { id: uid(), role: 'assistant', content: fixedReply };
+        setTranscript((prev) => [...prev, replyMsg]);
+        apiHistoryRef.current = [...apiHistoryRef.current, { role: 'assistant', content: fixedReply }];
+        setScriptedSessionStep('returning-intro-answer');
+        scriptedSessionStepRef.current = 'returning-intro-answer';
+        setFaceExpr('gentle');
+        try {
+          await callTts(fixedReply, replyMsg.id);
+        } finally {
+          setStreaming(false);
+          setTimeout(() => setFaceExpr('calm'), 500);
+          if (await goodbyePromise) handleEndSession();
+        }
+      });
+      return;
+    }
+
+    // ── Step 'returning-intro-answer' → mood reply + warmup game ────────
+    // Returning visitor just replied to the daily story. Mood-mirror that, then
+    // launch ONE warmup game (50/50 between rhythm-story and sound-detective —
+    // matching the two configured games in default.json). The warmup's
+    // completion handler (game-1-completion / game-2-answer) appends the
+    // WEATHER PROMPT and transitions to weather-game-choice afterward.
     if (effectiveStep === 'returning-intro-answer') {
       const userMsg: Transcript = { id: uid(), role: 'user', content: text };
       setTranscript((prev) => [...prev, userMsg]);
@@ -1447,13 +1561,70 @@ export default function TestChat() {
       setFaceExpr('thinking');
 
       void dispatchScriptedOrBypass({ userMsgId: userMsg.id }, async () => {
-        const moodReply = await moodIntroAnswerResponse(text, '');
-        const fixedReply = `${moodReply.trim()}\n\n${getShortWeatherPrompt()}`;
+        const moodReply = (await moodIntroAnswerResponse(text, '')).trim();
+        const useSoundDetective = Math.random() < 0.5;
+
+        // ── Branch: sound detective ────────────────────────────────────────
+        if (useSoundDetective) {
+          const selectedSound = await pickGame2SoundFromConfig();
+          if (!selectedSound) {
+            // No sounds configured — skip the warmup and go straight to
+            // weather so the flow still terminates correctly.
+            const fallback = `${moodReply}\n\n${getWeatherPrompt()}`;
+            const replyMsg: Transcript = { id: uid(), role: 'assistant', content: fallback };
+            setTranscript((prev) => [...prev, replyMsg]);
+            apiHistoryRef.current = [...apiHistoryRef.current, { role: 'assistant', content: fallback }];
+            setScriptedSessionStep('weather-game-choice');
+            scriptedSessionStepRef.current = 'weather-game-choice';
+            setFaceExpr('gentle');
+            try {
+              await callTts(fallback, replyMsg.id);
+            } finally {
+              setStreaming(false);
+              setTimeout(() => setFaceExpr('calm'), 500);
+              if (await goodbyePromise) handleEndSession();
+            }
+            return;
+          }
+
+          game2SoundRef.current = selectedSound;
+          const introBlock = `${moodReply}\n\n${getGame2Intro()}`;
+          const introMsg: Transcript = { id: uid(), role: 'assistant', content: introBlock };
+          setTranscript((prev) => [...prev, introMsg]);
+          apiHistoryRef.current = [...apiHistoryRef.current, { role: 'assistant', content: introBlock }];
+          setScriptedSessionStep('game-2-answer');
+          scriptedSessionStepRef.current = 'game-2-answer';
+          setFaceExpr('gentle');
+          try {
+            await callTts(introBlock, introMsg.id);
+            if (selectedSound.src) await playSoundEffect(selectedSound.src);
+            const questionMsg: Transcript = {
+              id: uid(),
+              role: 'assistant',
+              content: selectedSound.question,
+            };
+            setTranscript((prev) => [...prev, questionMsg]);
+            apiHistoryRef.current = [
+              ...apiHistoryRef.current,
+              { role: 'assistant', content: selectedSound.question },
+            ];
+            await callTts(selectedSound.question, questionMsg.id);
+          } finally {
+            setStreaming(false);
+            setTimeout(() => setFaceExpr('calm'), 500);
+            if (await goodbyePromise) handleEndSession();
+          }
+          return;
+        }
+
+        // ── Branch: rhythm story ───────────────────────────────────────────
+        const story = pickGame1StoryFromConfig();
+        const fixedReply = `${moodReply}\n\n${getGame1Prefix()}\n\n${story}`;
         const replyMsg: Transcript = { id: uid(), role: 'assistant', content: fixedReply };
         setTranscript((prev) => [...prev, replyMsg]);
         apiHistoryRef.current = [...apiHistoryRef.current, { role: 'assistant', content: fixedReply }];
-        setScriptedSessionStep('weather-game-choice');
-        scriptedSessionStepRef.current = 'weather-game-choice';
+        setScriptedSessionStep('game-1-completion');
+        scriptedSessionStepRef.current = 'game-1-completion';
         setFaceExpr('gentle');
         try {
           await callTts(fixedReply, replyMsg.id);
@@ -1548,6 +1719,12 @@ export default function TestChat() {
     // The child has just heard the recommendation and is naming one of the
     // games. Classify which one, drop it from the remaining pool, mark it
     // introduced, then speak the card + GAME_DECIDE_PROMPT in one bubble.
+    //
+    // We deliberately skip dispatchScriptedOrBypass here. The activity-intent
+    // classifier flags bare game names ("身体律动", "body exercise") as YES,
+    // which would bypass to the model and trigger start_activity — skipping
+    // the card the child explicitly asked to hear. At this step the user IS
+    // answering the scripted question, so the scripted reply always runs.
     if (effectiveStep === 'game-pick') {
       const userMsg: Transcript = { id: uid(), role: 'user', content: text };
       setTranscript((prev) => [...prev, userMsg]);
@@ -1555,7 +1732,7 @@ export default function TestChat() {
       setStreaming(true);
       setFaceExpr('thinking');
 
-      void dispatchScriptedOrBypass({ userMsgId: userMsg.id }, async () => {
+      void (async () => {
         let game: RecommendedGameId | 'unclear' = 'unclear';
         try {
           const raw = await classifyIntent(text, 'game-name');
@@ -1603,7 +1780,7 @@ export default function TestChat() {
           setTimeout(() => setFaceExpr('calm'), 500);
           if (await goodbyePromise) handleEndSession();
         }
-      });
+      })();
       return;
     }
 
@@ -1615,6 +1792,10 @@ export default function TestChat() {
     // named a specific one (handle that as a direct game-pick) or just said
     // "看其他" — pick the next pool game and emit its card. If the pool is
     // empty, transition to 'game-pool-exhausted'.
+    //
+    // Bypass intentionally skipped here for the same reason as 'game-pick':
+    // bare game names ("呼吸") would otherwise be flagged as direct intent and
+    // skip past the "想试 / 看其他" prompt.
     if (effectiveStep === 'game-decide') {
       const userMsg: Transcript = { id: uid(), role: 'user', content: text };
       setTranscript((prev) => [...prev, userMsg]);
@@ -1622,7 +1803,7 @@ export default function TestChat() {
       setStreaming(true);
       setFaceExpr('thinking');
 
-      void dispatchScriptedOrBypass({ userMsgId: userMsg.id }, async () => {
+      void (async () => {
         // First check if the child named a *different* game (e.g. after hearing
         // 呼吸 they say "想听共创编曲") — treat that as a direct game-pick.
         let namedGame: RecommendedGameId | 'unclear' = 'unclear';
@@ -1728,7 +1909,7 @@ export default function TestChat() {
           setTimeout(() => setFaceExpr('calm'), 500);
           if (await goodbyePromise) handleEndSession();
         }
-      });
+      })();
       return;
     }
 
@@ -1753,20 +1934,23 @@ export default function TestChat() {
 
       void dispatchScriptedOrBypass({ userMsgId: userMsg.id }, async () => {
         const selectedSound = game2SoundRef.current;
-        let fixedReply: string;
+        let baseReply: string;
         if (!selectedSound) {
-          fixedReply = '我刚才的声音好像跑丢了。没关系，我们等下再玩一次声音侦探吧。';
+          baseReply = '我刚才的声音好像跑丢了。没关系，我们等下再玩一次声音侦探吧。';
         } else {
           const correct = await isSoundAnswerCorrect(text, selectedSound.label);
-          fixedReply = correct ? selectedSound.correctResponse : selectedSound.wrongResponse;
+          baseReply = correct ? selectedSound.correctResponse : selectedSound.wrongResponse;
         }
 
+        // Warmup done → weather prompt rides in the same bubble, then the
+        // weather-game-choice state handles the recommendation.
+        const fixedReply = `${baseReply}\n\n${getWeatherPrompt()}`;
         const replyMsg: Transcript = { id: uid(), role: 'assistant', content: fixedReply };
         setTranscript((prev) => [...prev, replyMsg]);
         apiHistoryRef.current = [...apiHistoryRef.current, { role: 'assistant', content: fixedReply }];
         game2SoundRef.current = null;
-        setScriptedSessionStep('none');
-        scriptedSessionStepRef.current = 'none';
+        setScriptedSessionStep('weather-game-choice');
+        scriptedSessionStepRef.current = 'weather-game-choice';
         setFaceExpr('gentle');
         try {
           await callTts(fixedReply, replyMsg.id);
@@ -1779,7 +1963,7 @@ export default function TestChat() {
       return;
     }
 
-    // ── Step 'game-1-completion' → random closing line ────────────────────
+    // ── Step 'game-1-completion' → closing line + weather prompt ──────────
     if (effectiveStep === 'game-1-completion') {
       const userMsg: Transcript = { id: uid(), role: 'user', content: text };
       setTranscript((prev) => [...prev, userMsg]);
@@ -1791,7 +1975,8 @@ export default function TestChat() {
         // Only fire the random completion response if the AI thinks the
         // child actually said they're done. Otherwise hand off to the LLM
         // so it can respond conversationally to whatever they actually said
-        // ("我不会", "再来一次", "this is hard", etc.).
+        // ("我不会", "再来一次", "this is hard", etc.) — the weather step is
+        // lost in that case, but the scripted flow has already broken anyway.
         const completed = await isTaskCompleted(text);
         if (!completed) {
           setTranscript((prev) => prev.filter((t) => t.id !== userMsg.id));
@@ -1804,12 +1989,14 @@ export default function TestChat() {
           return;
         }
 
-        const fixedReply = pickGame1CompletionFromConfig();
+        // Warmup done → weather prompt rides in the same bubble, then the
+        // weather-game-choice state handles the recommendation.
+        const fixedReply = `${pickGame1CompletionFromConfig()}\n\n${getWeatherPrompt()}`;
         const replyMsg: Transcript = { id: uid(), role: 'assistant', content: fixedReply };
         setTranscript((prev) => [...prev, replyMsg]);
         apiHistoryRef.current = [...apiHistoryRef.current, { role: 'assistant', content: fixedReply }];
-        setScriptedSessionStep('none');
-        scriptedSessionStepRef.current = 'none';
+        setScriptedSessionStep('weather-game-choice');
+        scriptedSessionStepRef.current = 'weather-game-choice';
         setFaceExpr('gentle');
         try {
           await callTts(fixedReply, replyMsg.id);
@@ -1946,9 +2133,10 @@ export default function TestChat() {
 
     const cancel = startChatStream(
       {
-        personaId: selectedPersonaId,
+        childAge: childAgeRef.current,
         messages: history,
         ...(activityContext ? { activityContext } : {}),
+        ...(concerningModeForThisTurn ? { concerningMode: true } : {}),
       },
       {
         onText(delta) {
@@ -2049,22 +2237,12 @@ export default function TestChat() {
           // Record assistant response in api history (visible transcript already updated above)
           apiHistoryRef.current = [...apiHistoryRef.current, { role: 'assistant', content: finalContent }];
 
-          // ── Assistant-side distress detection (model-judged) ──────────
-          // Send the just-generated reply back to the classifier model and
-          // ask "is this a distress-handling response?". Runs in parallel
-          // with TTS so it doesn't add user-visible latency, and end-of-
-          // session waits for both to settle. The model judges semantics
-          // rather than a brittle keyword list — fewer false positives.
-          const assistantDistressPromise: Promise<boolean> = (async () => {
-            if (!finalContent.trim()) return false;
-            try {
-              const label = await classifyIntent(finalContent, 'assistant-distress');
-              return label === 'yes';
-            } catch {
-              return false;
-            }
-          })();
-
+          // The previous build also re-classified the assistant's reply with
+          // an 'assistant-distress' schema and ended the session if positive.
+          // That layer is removed — the front-line AI risk classifier (run on
+          // the user's input at the top of sendMessage) catches the same
+          // crises earlier, without adding a second model round-trip after
+          // every assistant turn.
           void callTts(finalContent, assistantMsg.id).then(() => {
             // If TTS won't actually play (muted or empty content), there's no
             // audio.ended event to wait for — release the queued melody now.
@@ -2072,28 +2250,7 @@ export default function TestChat() {
               flushPendingMelody();
             }
           }).finally(() => {
-            // Wait for the assistant-distress verdict; if positive, mark the
-            // bubbles, raise the banner, and end session. If negative, fall
-            // through to the standard goodbye check.
-            void assistantDistressPromise.then((isDistress) => {
-              if (isDistress) {
-                setTranscript((prev) => {
-                  let lastUserIdx = -1;
-                  for (let i = prev.length - 1; i >= 0; i--) {
-                    if (prev[i]!.role === 'user') { lastUserIdx = i; break; }
-                  }
-                  return prev.map((m, idx) => {
-                    if (m.id === assistantMsg.id) return { ...m, distressResponse: true };
-                    if (idx === lastUserIdx) return { ...m, distressTrigger: true };
-                    return m;
-                  });
-                });
-                setDistressFlagged(true);
-                handleEndSession();
-                return;
-              }
-              void goodbyePromise.then((end) => { if (end) handleEndSession(); });
-            });
+            void goodbyePromise.then((end) => { if (end) handleEndSession(); });
           });
 
           // Schedule auto-advance:
@@ -2229,7 +2386,7 @@ export default function TestChat() {
     );
 
     cancelRef.current = cancel;
-  }, [input, selectedPersonaId, sessionActive, streaming, transcript, therapyMode, activeActivity, activitySectionIndex, callTts, cancelAutoAdvance, endActivity, handleEndSession]);
+  }, [input, sessionActive, streaming, transcript, therapyMode, activeActivity, activitySectionIndex, callTts, cancelAutoAdvance, endActivity, handleEndSession]);
 
   // Keep ref up-to-date so audio.ended can invoke the latest sendMessage
   sendMessageRef.current = sendMessage;
@@ -2259,7 +2416,6 @@ export default function TestChat() {
       stopAudio();
     } else {
       // Turn on: create client, connect (mic permission deferred until PTT press)
-      if (!selectedPersonaId) return;
       setVoiceMode(true);
       setVoiceError(null);
       setVoiceReady(false);
@@ -2352,9 +2508,9 @@ export default function TestChat() {
       });
 
       voiceClientRef.current = client;
-      client.connect(selectedPersonaId);
+      client.connect(childAgeRef.current);
     }
-  }, [voiceMode, selectedPersonaId, stopAudio]);
+  }, [voiceMode, stopAudio]);
 
   // ── Voice Live: PTT handlers ──────────────────────────────────────────────
   const handlePttStart = useCallback(async () => {
@@ -2393,7 +2549,6 @@ export default function TestChat() {
     };
   }, [voiceMode, recording, handlePttStart, handlePttStop]);
 
-  const selectedPersona = personas.find((p) => p.id === selectedPersonaId);
   const exprDef = EXPRESSIONS[faceExpr] ?? EXPRESSIONS['calm']!;
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -2402,7 +2557,7 @@ export default function TestChat() {
       <div className="max-w-2xl">
         <h1 className="text-2xl font-semibold text-slate-100 mb-4">Test Chat</h1>
         <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 p-4 text-rose-300 text-sm">
-          <strong>Failed to load personas:</strong> {loadError}
+          <strong>Failed to load config:</strong> {loadError}
           <br />
           Make sure the server is running (<code>pnpm dev</code>).
         </div>
@@ -2530,13 +2685,10 @@ export default function TestChat() {
                     ? 'Hold the button (or Space) to speak'
                     : 'Send a message to start a session'}
                 </div>
-                {selectedPersona && (
-                  <div className="mt-1 text-xs">
-                    Talking with <span className="text-purple-400">{selectedPersona.name}</span>
-                    {selectedPersona.avatarEmoji && ` ${selectedPersona.avatarEmoji}`}
-                    , age {selectedPersona.ageYears}
-                  </div>
-                )}
+                <div className="mt-1 text-xs">
+                  Child age (asked during intro):{' '}
+                  <span className="text-purple-400">{childAge}</span>
+                </div>
               </div>
             )}
 
@@ -2601,23 +2753,15 @@ export default function TestChat() {
 
           {/* Controls row */}
           <div className="flex-shrink-0 flex flex-col gap-2">
-            {/* Persona + therapy mode */}
+            {/* Child age readout + therapy mode */}
             <div className="flex items-center gap-2">
-              <select
-                value={selectedPersonaId}
-                onChange={(e) => setSelectedPersonaId(e.target.value)}
-                disabled={streaming || voiceMode}
-                className="flex-1 bg-led-panel border border-led-border rounded-md px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-purple-500 disabled:opacity-40"
-              >
-                {personas.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.avatarEmoji ?? ''} {p.name} · age {p.ageYears}
-                  </option>
-                ))}
-                {personas.length === 0 && (
-                  <option value="">Loading personas…</option>
-                )}
-              </select>
+              <div className="flex-1 flex items-center gap-2 px-3 py-1.5 rounded-md border border-led-border bg-led-panel text-xs text-slate-400">
+                <Baby size={12} className="text-purple-400" />
+                <span>
+                  Child age — defaults to {AGE_DEFAULT} until the scripted intro collects it.
+                  Current: <span className="text-purple-300 font-medium">{childAge}</span>
+                </span>
+              </div>
 
               <button
                 onClick={() => setTherapyMode((v) => !v)}
@@ -2647,7 +2791,7 @@ export default function TestChat() {
               ) : (
                 <button
                   onClick={handleStartChatting}
-                  disabled={voiceMode || !selectedPersonaId || ttsLoading}
+                  disabled={voiceMode || ttsLoading}
                   title="Begin a new session with the intro"
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors border flex-shrink-0 bg-emerald-500/15 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/25 disabled:opacity-30 disabled:cursor-not-allowed"
                 >
@@ -2665,11 +2809,9 @@ export default function TestChat() {
               >
                 <span className="font-medium uppercase tracking-wider">System prompt</span>
                 <div className="flex items-center gap-2">
-                  {selectedPersona && (
-                    <span className="text-purple-400/70 normal-case tracking-normal">
-                      {selectedPersona.name} · {selectedPersona.ageYears}yo
-                    </span>
-                  )}
+                  <span className="text-purple-400/70 normal-case tracking-normal">
+                    age {childAge}
+                  </span>
                   {promptOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                 </div>
               </button>
@@ -2726,7 +2868,6 @@ export default function TestChat() {
               {/* Voice mode toggle */}
               <button
                 onClick={toggleVoiceMode}
-                disabled={!selectedPersonaId}
                 title={voiceMode ? 'Voice mode ON — click to switch to text' : 'Switch to voice mode'}
                 className={[
                   'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors border flex-shrink-0 disabled:opacity-30 disabled:cursor-not-allowed',
@@ -2814,22 +2955,20 @@ export default function TestChat() {
                   }}
                   onFocus={cancelAutoAdvance}
                   onKeyDown={handleKeyDown}
-                  disabled={!selectedPersonaId || !sessionActive}
+                  disabled={!sessionActive}
                   placeholder={
                     !sessionActive
                       ? 'Click "Start chatting" to begin a session.'
-                      : selectedPersona
-                        ? streaming
-                          ? `Type to interrupt ${selectedPersona.name}… (Enter to send)`
-                          : `Say something to ${selectedPersona.name}… (Enter to send)`
-                        : 'Loading…'
+                      : streaming
+                        ? 'Type to interrupt… (Enter to send)'
+                        : 'Say something… (Enter to send)'
                   }
                   rows={2}
                   className="flex-1 resize-none bg-led-panel border border-led-border rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-purple-500 disabled:opacity-40 transition-colors"
                 />
                 <button
                   onClick={() => sendMessage()}
-                  disabled={!input.trim() || !selectedPersonaId || !sessionActive}
+                  disabled={!input.trim() || !sessionActive}
                   title={streaming ? 'Interrupt and send' : 'Send'}
                   className="px-4 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center"
                 >
@@ -2877,25 +3016,18 @@ export default function TestChat() {
             )}
           </div>
 
-          {/* Persona card */}
-          {selectedPersona && (
-            <div className="w-full rounded-lg border border-led-border bg-led-panel p-3 text-xs text-slate-400 space-y-1">
-              <div className="text-slate-300 font-medium">
-                {selectedPersona.avatarEmoji} {selectedPersona.name}
-                <span className="text-slate-500 font-normal ml-1">· age {selectedPersona.ageYears}</span>
-              </div>
-              <div className="line-clamp-2 leading-relaxed">{selectedPersona.backstory}</div>
-              <div>
-                <span className="text-slate-500">Comm:</span>{' '}
-                {selectedPersona.communicationAbility}
-              </div>
-              <div>
-                <span className="text-slate-500">Likes:</span>{' '}
-                {selectedPersona.likes.slice(0, 3).join(', ')}
-                {selectedPersona.likes.length > 3 && '…'}
-              </div>
+          {/* Child age readout */}
+          <div className="w-full rounded-lg border border-led-border bg-led-panel p-3 text-xs text-slate-400 space-y-1">
+            <div className="text-slate-300 font-medium flex items-center gap-1.5">
+              <Baby size={12} className="text-purple-400" />
+              Child age
+              <span className="text-purple-300 font-normal ml-1">{childAge}</span>
             </div>
-          )}
+            <div className="text-[10px] leading-relaxed">
+              Captured during the scripted intro (new + returning friends both
+              asked). Defaults to {AGE_DEFAULT} until the kid replies.
+            </div>
+          </div>
 
           {/* Voice mode status indicator */}
           {voiceMode && (

@@ -4,6 +4,15 @@
 > 不涉及服务器架构。
 > 所有引文都是原文，附 `file:line` 出处。
 
+## 活动名 (display name) 速查
+
+| activity_id (内部稳定) | 显示给孩子的名字 | 旧名（classifier 仍可识别） |
+|---|---|---|
+| `breathing` | 呼吸练习 | 同 |
+| `body-rhythm` | **身体小乐队** | 身体律动 / 节奏练习 |
+| `emotion-music-mapping` | **音乐心情猜猜猜** | 情绪-音乐映射 / 情绪映射 |
+| `co-creation` | **三个音符变魔法** | 共创编曲 |
+
 ---
 
 ## 0. 三个对话来源 — 必须分清
@@ -319,7 +328,7 @@ graph TD
 
 ## 2. 活动内对话 (Frontend + LLM + Server 三方都说话)
 
-### 2.1 `breathing` (scripted, age-bucketed)
+### 2.1 `breathing` 呼吸练习 (scripted, age-bucketed)
 
 #### Start activity
 1. LLM 调 `start_activity({ activity_id: 'breathing' })`
@@ -350,11 +359,11 @@ graph TD
 | **直接说别的活动名** | `activity-intent=yes` | 触发 `end_activity` + 新 `start_activity` |
 | 最后回答 "感觉好多了" | (无) | LLM 自由收尾或调 `end_activity` |
 
-> ⚠️ **冲突点 4**：breathing 只有 1 个 ageBucket (`min:0, max:7`)。如果 persona 是 12 岁的 Yuhan，匹配会失败，`resolveStartActivity` 返回 fail，整个 chat 流程报错。**Bug**：没有 fallback bucket。
+> ⚠️ **冲突点 4 (部分修复)**：breathing 现在有 3 个 ageBucket (`0-7` / `8-12` / `13-18`)，但**只有 0-7 bucket 写了 narrationScript**。8-12 / 13-18 只有 audioFilenames，没文本 → LLM 没东西强制照念，回到自由发挥。需要为另两个年龄段补 narration。
 
 ---
 
-### 2.2 `body-rhythm` (scripted, age-bucketed)
+### 2.2 `body-rhythm` 身体小乐队 (scripted, age-bucketed)
 
 类似 breathing。2 个 ageBucket (0-7 / 8-12)。narrationScript 是关于"拍手回声游戏、动物动作、节奏小火车"的长段文本。
 
@@ -366,7 +375,7 @@ graph TD
 
 ---
 
-### 2.3 `emotion-music-mapping` (scripted, emotion-bucketed)
+### 2.3 `emotion-music-mapping` 音乐心情猜猜猜 (scripted, emotion-bucketed)
 
 `resolveStartActivity` 按 `args.emotion` 匹配 7 个 emotionBucket：calm / happy / sad / angry / scared / excited / surprised。
 
@@ -383,7 +392,7 @@ graph TD
 
 ---
 
-### 2.4 `co-creation` (interactive, 6 stage 状态机)
+### 2.4 `co-creation` 三个音符变魔法 (interactive, 6 stage 状态机)
 
 **最复杂的活动**。台词来源混合：
 - **Stage 1 opener**：服务器 `resolveStartActivity` 返回 `currentSectionText` 给 LLM 照念
@@ -608,26 +617,26 @@ LLM 可能问的常见问句类型 (非 scripted)：
 
 ### 🔴 严重 (会被用户看到 bug)
 
-#### 冲突 A · gameRoll=2 显示字面 "game 3"
+#### 冲突 A · gameRoll=2 显示字面 "game 3" ✅ 已修
 - **位置**：`TestChat.tsx:1454`
 - **症状**：约 1/3 概率孩子看到屏幕上出现 `game 3` 这几个字符
-- **修复**：要么删 gameRoll=2 (改成 0/1 二选一)，要么实现真正的第 3 个游戏
+- **状态**：已被 weather-based 推荐流程取代（commit `cabc928`），random gameRoll 已废弃
 
-#### 冲突 B · transition phrase 含 typo "小有些"
+#### 冲突 B · transition phrase 含 typo "小有些" ✅ 已修
 - **位置**：`default.json` `conversationFlow.transitionPhrases[1]`
-- **原文**：`你想不想尝试一个新的小有些？`
-- **症状**：LLM 1/3 概率念出 "小有些"，孩子听不懂
-- **修复**：改成 `小游戏`
+- **原文**：`你想不想尝试一个新的小有些？` → `你想不想尝试一个新的小游戏？`
+- **状态**：commit `0cc3ab3` 已修复
 
 #### 冲突 C · Co-creation Stage 5 菜单是交互假象
 - **位置**：`assembleSystemPrompt.ts:348` Stage 5 prompt
 - **症状**：菜单给 3 个选项 (换音符 / 改速度 / 加新音符)，但 `play_melody({ variant: 'background' })` 在同一回合已经播放，孩子选什么都没差别
 - **修复**：要么删菜单，要么把 background 拆成 3 个独立 melody 文件按选项分支
 
-#### 冲突 D · breathing 活动无 fallback ageBucket
+#### 冲突 D · breathing 老年龄段缺 narrationScript ⚠️ 半修
 - **位置**：`default.json` `activities.breathing.ageBuckets`
-- **症状**：只有 1 个 bucket (`min:0 max:7`)。12 岁 persona (Yuhan) 启动 breathing → resolveStartActivity 失败 → chat 报错
-- **修复**：加 8-12 / 13+ bucket，或者让 resolveStartActivity 找不到匹配时回退到最近 bucket
+- **现状**：已有 3 个 bucket (`0-7` / `8-12` / `13-18`)，但只有 0-7 写了 narrationScript
+- **症状**：8-12 / 13-18 启动 breathing → 没有强制照念文本 → LLM 自由发挥（可能 OK 也可能跑偏）
+- **修复**：为 8-12 / 13-18 写 narrationScript（年龄段不同语言风格不同）
 
 ### 🟡 中等 (可能造成体验混乱)
 
