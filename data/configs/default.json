@@ -427,7 +427,7 @@
         {
           "id": "chicken",
           "label": "鸡 Chicken",
-          "audioFilename": "chicken.mp3",
+          "audioFilename": "chicken.m4a",
           "question": "仔细听……\n\n你觉得是什么东西发出的声音？",
           "correctKeywords": [
             "鸡",
@@ -445,7 +445,7 @@
         {
           "id": "wind",
           "label": "风 Wind",
-          "audioFilename": "wind.mp3",
+          "audioFilename": "wind(1).mp3",
           "question": "仔细听……\n\n你觉得是什么东西发出的声音？",
           "correctKeywords": [
             "风",
@@ -463,7 +463,7 @@
         {
           "id": "rain",
           "label": "雨 Rain",
-          "audioFilename": "rain.mp3",
+          "audioFilename": "rain.m4a",
           "question": "仔细听这个……\n\n你觉得是什么东西发出的声音？",
           "correctKeywords": [
             "雨",
@@ -482,7 +482,7 @@
         {
           "id": "dog",
           "label": "狗 Dog",
-          "audioFilename": "dog.mp3",
+          "audioFilename": "dog(1).mp3",
           "question": "仔细听……\n\n你觉得是什么动物发出的声音？",
           "correctKeywords": [
             "狗",

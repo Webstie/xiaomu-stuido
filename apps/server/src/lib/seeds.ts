@@ -469,7 +469,7 @@ export const DEFAULT_CONFIG: StudioConfig = {
         {
           id: 'chicken',
           label: '鸡 Chicken',
-          audioFilename: 'chicken.mp3',
+          audioFilename: 'chicken.m4a',
           question: '仔细听……\n\n你觉得是什么东西发出的声音？',
           correctKeywords: ['鸡', '小鸡', '母鸡', '公鸡', '大鸡', '鸡叫', '咯咯', '咕咕'],
           correctResponse:
@@ -480,7 +480,7 @@ export const DEFAULT_CONFIG: StudioConfig = {
         {
           id: 'wind',
           label: '风 Wind',
-          audioFilename: 'wind.mp3',
+          audioFilename: 'wind(1).mp3',
           question: '仔细听……\n\n你觉得是什么东西发出的声音？',
           correctKeywords: ['风', '大风', '微风', '风声', '刮风', '吹风', '呼呼', '空气'],
           correctResponse:
@@ -491,7 +491,7 @@ export const DEFAULT_CONFIG: StudioConfig = {
         {
           id: 'rain',
           label: '雨 Rain',
-          audioFilename: 'rain.mp3',
+          audioFilename: 'rain.m4a',
           question: '仔细听这个……\n\n你觉得是什么东西发出的声音？',
           correctKeywords: ['雨', '小雨', '大雨', '雨水', '下雨', '雨声', '雨滴', '滴答', '嗒嗒'],
           correctResponse:
@@ -502,7 +502,7 @@ export const DEFAULT_CONFIG: StudioConfig = {
         {
           id: 'dog',
           label: '狗 Dog',
-          audioFilename: 'dog.mp3',
+          audioFilename: 'dog(1).mp3',
           question: '仔细听……\n\n你觉得是什么动物发出的声音？',
           correctKeywords: ['狗', '小狗', '狗狗', '大狗', '汪汪', '犬', '狗叫'],
           correctResponse:

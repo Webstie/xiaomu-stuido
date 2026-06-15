@@ -1011,7 +1011,11 @@ export default function TestChat() {
   }, [stopAudio]);
 
   // ── callTts ──────────────────────────────────────────────────────────────
-  const callTts = useCallback(async (text: string, msgId: string) => {
+  const callTts = useCallback(async (
+    text: string,
+    msgId: string,
+    options?: { waitForEnd?: boolean },
+  ) => {
     if (mutedRef.current || !text.trim()) return;
     stopAudio();
     setTtsLoading(true);
@@ -1042,6 +1046,10 @@ export default function TestChat() {
           autoAdvanceTimerRef.current = null;
           setAutoAdvancePending(false);
         }
+      });
+      const playbackEnded = new Promise<void>((resolve) => {
+        audio.addEventListener('ended', () => resolve(), { once: true });
+        audio.addEventListener('error', () => resolve(), { once: true });
       });
       audio.addEventListener('ended', () => {
         cancelAnimationFrame(visemeRafRef.current);
@@ -1110,6 +1118,9 @@ export default function TestChat() {
         }
       });
       await audio.play();
+      if (options?.waitForEnd) {
+        await playbackEnded;
+      }
     } catch {
       // TTS errors are non-fatal; chat text already shown
     } finally {
@@ -1596,7 +1607,7 @@ export default function TestChat() {
           scriptedSessionStepRef.current = 'game-2-answer';
           setFaceExpr('gentle');
           try {
-            await callTts(introBlock, introMsg.id);
+            await callTts(introBlock, introMsg.id, { waitForEnd: true });
             if (selectedSound.src) await playSoundEffect(selectedSound.src);
             const questionMsg: Transcript = {
               id: uid(),
