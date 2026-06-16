@@ -513,7 +513,7 @@ export const DEFAULT_CONFIG: StudioConfig = {
         {
           id: 'bird',
           label: '鸟 Bird',
-          audioFilename: 'bird.mp3',
+          audioFilename: 'bird.m4a',
           question: '仔细听……\n\n你觉得是什么东西发出的声音？',
           correctKeywords: ['鸟', '小鸟', '鸟儿', '鸟叫', '鸟鸣', '叽叽', '喳喳', '麻雀', '乌鸦', '燕子'],
           correctResponse:
