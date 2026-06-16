@@ -47,6 +47,12 @@ export const WEATHER_PROMPT =
   '❄️ 下雪天\n雪花轻轻飘，心里静静的、软软的，像盖了一条软毯子。\n' +
   '你觉得哪个天气可以代表你的心情啊？';
 
+// 3-year-olds skip the thunderstorm option — too scary for the youngest kids.
+export function weatherPromptForAge(prompt: string, childAge: number): string {
+  if (childAge > 3) return prompt;
+  return prompt.replace(/\n?⚡\s*雷雨天\n[^\n]*/, '');
+}
+
 export const RE_ASK_FIRST_MEETING =
   '嗯,我没太听明白。你之前有见过我吗?还是这是我们第一次见面?';
 

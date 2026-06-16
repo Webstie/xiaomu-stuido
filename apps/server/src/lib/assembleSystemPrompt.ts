@@ -24,6 +24,7 @@ import {
   RETURNING_RECOGNITION,
   RETURNING_DAILY_STORIES,
   WEATHER_PROMPT,
+  weatherPromptForAge,
 } from './introFlow.js';
 
 const LANG_LABEL: Record<string, string> = {
@@ -193,7 +194,7 @@ export function assembleSystemPrompt(
     lines.push('─── END ───');
     lines.push('');
     lines.push('─── WEATHER PROMPT (reference) ───');
-    lines.push(WEATHER_PROMPT);
+    lines.push(weatherPromptForAge(WEATHER_PROMPT, childAge));
     lines.push('─── END ───');
     lines.push('');
   }

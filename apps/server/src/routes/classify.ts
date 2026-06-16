@@ -120,8 +120,11 @@ const SCHEMAS = {
       'Examples that are EMOTION-MAPPING (音乐心情猜猜猜 — also 情绪-音乐映射): ' +
       '"音乐心情猜猜猜", "心情猜猜猜", "心情猜猜", "猜心情", "情绪-音乐映射", "情绪映射", ' +
       '"emotion mapping", "情绪音乐", "听音乐猜".\n' +
-      'Examples that are UNCLEAR: "好", "嗯", "试一试", "我不知道", "都可以", "看其他", ' +
-      'unrelated chat. When unsure, choose unclear.',
+      'Examples that are UNCLEAR (no specific game named — bare affirmations, ' +
+      'refusals, hedges, "look at others"): "好", "好呀", "好的", "嗯", "行", "行呀", ' +
+      '"可以", "都可以", "试一试", "试试", "我想试试", "想试", "我想尝试", "我想尝试一下", ' +
+      '"尝试一下", "我不知道", "随便", "看其他", "看别的", "换一个", unrelated chat. ' +
+      'A bare yes/affirmation with NO game name is ALWAYS unclear. When unsure, choose unclear.',
   },
   'assistant-distress': {
     labels: ['yes', 'no'] as const,

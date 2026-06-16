@@ -114,7 +114,8 @@ const RE_ASK_WEATHER = '嗯,我没太听明白。哪个天气更代表你现在�
 const GAME_DECIDE_PROMPT = '你想尝试一下这个小游戏吗?还是想看看其他游戏?如果是的话,请告诉我你想要了解的游戏。';
 const GAME_START_LINE = '好啊,那我们现在就开始咯。';
 const GAME_POOL_EXHAUSTED_PROMPT = '那你想做什么呢?我们可以做呼吸练习、身体小乐队、音乐心情猜猜猜、或者三个音符变魔法。';
-const RE_ASK_GAME_NAME = '嗯,我没太确定。你想了解的是身体小乐队、三个音符变魔法、呼吸练习、还是音乐心情猜猜猜呢?';
+const RE_ASK_GAME_NAME_UNMATCHED = '哎呀这个名字我好像没对上,不过我这里有这些游戏可以选:身体小乐队、跟着音乐深呼吸、音乐心情猜猜猜、三个音符变魔法。你对哪个好奇呀?';
+const RE_ASK_GAME_NAME_VAGUE = '太好啦!那你想先试哪一个呢?我这里有四种小游戏等着你呢,挑一个名字最吸引你的就行～';
 
 type Game2SoundId = 'chicken' | 'wind' | 'rain' | 'dog' | 'bird';
 
@@ -274,6 +275,12 @@ const WEATHER_PROMPT =
   '❄️ 下雪天\n' +
   '雪花轻轻飘，心里静静的、软软的，像盖了一条软毯子。\n' +
   '你觉得哪个天气可以代表你的心情啊？';
+
+// 3-year-olds skip the thunderstorm option — too scary for the youngest kids.
+function weatherPromptForAge(prompt: string, childAge: number): string {
+  if (childAge > 3) return prompt;
+  return prompt.replace(/\n?⚡\s*雷雨天\n[^\n]*/, '');
+}
 
 const RETURNING_SESSION_INTROS = [
   '我今天在小镇的喷泉广场遇到了一个叫小轩的新朋友，他当时正抱着吉他坐在台阶上试音，我们俩试着即兴合奏了一段，默契得就像认识了很久一样。你今天过得怎么样呢？有什么好玩的事吗？',
@@ -1475,21 +1482,26 @@ export default function TestChat() {
     // ── Step 'age' / 'age-short' → deliver weather prompt, advance to next phase ──
     if (effectiveStep === 'age' || effectiveStep === 'age-short') {
       const isShort = effectiveStep === 'age-short';
-      const weatherPrompt = isShort ? getShortWeatherPrompt() : getWeatherPrompt();
       const nextStep: ScriptedSessionStep = isShort ? 'weather-game-choice' : 'none';
 
       // Persist the kid's age as the source-of-truth for all subsequent
       // LLM + Voice Live + system-prompt calls this session. First digit run
       // in [1, 120] wins; if the kid types nothing parseable we keep the
       // existing default and the model still gets a usable age bucket.
+      let effectiveAge = childAgeRef.current;
       const ageMatch = text.match(/\d+/);
       if (ageMatch) {
         const parsed = parseInt(ageMatch[0], 10);
         if (parsed >= 1 && parsed <= 120) {
           setChildAge(parsed);
           childAgeRef.current = parsed;
+          effectiveAge = parsed;
         }
       }
+
+      const weatherPrompt = isShort
+        ? getShortWeatherPrompt()
+        : weatherPromptForAge(getWeatherPrompt(), effectiveAge);
 
       const userMsg: Transcript = { id: uid(), role: 'user', content: text };
       setTranscript((prev) => [...prev, userMsg]);
@@ -1581,7 +1593,7 @@ export default function TestChat() {
           if (!selectedSound) {
             // No sounds configured — skip the warmup and go straight to
             // weather so the flow still terminates correctly.
-            const fallback = `${moodReply}\n\n${getWeatherPrompt()}`;
+            const fallback = `${moodReply}\n\n${weatherPromptForAge(getWeatherPrompt(), childAgeRef.current)}`;
             const replyMsg: Transcript = { id: uid(), role: 'assistant', content: fallback };
             setTranscript((prev) => [...prev, replyMsg]);
             apiHistoryRef.current = [...apiHistoryRef.current, { role: 'assistant', content: fallback }];
@@ -1755,12 +1767,24 @@ export default function TestChat() {
         }
 
         if (game === 'unclear') {
-          const replyMsg: Transcript = { id: uid(), role: 'assistant', content: RE_ASK_GAME_NAME };
+          // Distinguish two flavours of "unclear":
+          //   • child said a vague yes ("好呀" / "都可以") without naming a game
+          //     → ask them to pick one of the four
+          //   • child said something we couldn't match to any game name
+          //     → list the games again with the "name didn't match" wording
+          // Reason: the child is much more cooperative with the right framing.
+          let vague = false;
+          try {
+            const raw = await classifyIntent(text, 'yesno');
+            vague = raw === 'yes';
+          } catch { /* default to unmatched wording */ }
+          const reAsk = vague ? RE_ASK_GAME_NAME_VAGUE : RE_ASK_GAME_NAME_UNMATCHED;
+          const replyMsg: Transcript = { id: uid(), role: 'assistant', content: reAsk };
           setTranscript((prev) => [...prev, replyMsg]);
-          apiHistoryRef.current = [...apiHistoryRef.current, { role: 'assistant', content: RE_ASK_GAME_NAME }];
+          apiHistoryRef.current = [...apiHistoryRef.current, { role: 'assistant', content: reAsk }];
           setFaceExpr('gentle');
           try {
-            await callTts(RE_ASK_GAME_NAME, replyMsg.id);
+            await callTts(reAsk, replyMsg.id);
           } finally {
             setStreaming(false);
             setTimeout(() => setFaceExpr('calm'), 500);
@@ -1815,17 +1839,27 @@ export default function TestChat() {
       setFaceExpr('thinking');
 
       void (async () => {
-        // First check if the child named a *different* game (e.g. after hearing
-        // 呼吸 they say "想听共创编曲") — treat that as a direct game-pick.
-        let namedGame: RecommendedGameId | 'unclear' = 'unclear';
-        try {
-          const raw = await classifyIntent(text, 'game-name');
-          if (raw === 'rhythm' || raw === 'co-creation' || raw === 'breathing' || raw === 'emotion-mapping') {
-            namedGame = raw;
-          }
-        } catch { /* fall through to yes/no */ }
+        // Run yes/no and game-name in parallel. yes/no wins to defend against
+        // the game-name classifier falsely tagging affirmations like
+        // "我想尝试一下" as a different game and skipping past the start line.
+        // Only re-route to a different game if the child clearly named one
+        // AND the yes/no signal isn't a plain "yes".
+        const [yesnoRaw, gameRaw] = await Promise.all([
+          classifyIntent(text, 'yesno').catch(() => 'unclear'),
+          classifyIntent(text, 'game-name').catch(() => 'unclear'),
+        ]);
+        const yesno: 'yes' | 'no' | 'unclear' =
+          yesnoRaw === 'yes' || yesnoRaw === 'no' || yesnoRaw === 'unclear' ? yesnoRaw : 'unclear';
+        const namedGame: RecommendedGameId | 'unclear' =
+          gameRaw === 'rhythm' || gameRaw === 'co-creation' || gameRaw === 'breathing' || gameRaw === 'emotion-mapping'
+            ? gameRaw
+            : 'unclear';
 
-        if (namedGame !== 'unclear' && namedGame !== currentGameRef.current) {
+        if (
+          yesno !== 'yes' &&
+          namedGame !== 'unclear' &&
+          namedGame !== currentGameRef.current
+        ) {
           // Re-route as if we were in 'game-pick' for the newly named game.
           gamePoolRef.current = gamePoolRef.current.filter((g) => g !== namedGame);
           introducedGamesRef.current.add(namedGame);
@@ -1846,15 +1880,6 @@ export default function TestChat() {
             if (await goodbyePromise) handleEndSession();
           }
           return;
-        }
-
-        // Otherwise treat the reply as yes/no on "want to try this game?".
-        let yesno: 'yes' | 'no' | 'unclear' = 'unclear';
-        try {
-          const raw = await classifyIntent(text, 'yesno');
-          if (raw === 'yes' || raw === 'no' || raw === 'unclear') yesno = raw;
-        } catch {
-          yesno = 'unclear';
         }
 
         if (yesno === 'yes') {
@@ -1955,7 +1980,7 @@ export default function TestChat() {
 
         // Warmup done → weather prompt rides in the same bubble, then the
         // weather-game-choice state handles the recommendation.
-        const fixedReply = `${baseReply}\n\n${getWeatherPrompt()}`;
+        const fixedReply = `${baseReply}\n\n${weatherPromptForAge(getWeatherPrompt(), childAgeRef.current)}`;
         const replyMsg: Transcript = { id: uid(), role: 'assistant', content: fixedReply };
         setTranscript((prev) => [...prev, replyMsg]);
         apiHistoryRef.current = [...apiHistoryRef.current, { role: 'assistant', content: fixedReply }];
@@ -2002,7 +2027,7 @@ export default function TestChat() {
 
         // Warmup done → weather prompt rides in the same bubble, then the
         // weather-game-choice state handles the recommendation.
-        const fixedReply = `${pickGame1CompletionFromConfig()}\n\n${getWeatherPrompt()}`;
+        const fixedReply = `${pickGame1CompletionFromConfig()}\n\n${weatherPromptForAge(getWeatherPrompt(), childAgeRef.current)}`;
         const replyMsg: Transcript = { id: uid(), role: 'assistant', content: fixedReply };
         setTranscript((prev) => [...prev, replyMsg]);
         apiHistoryRef.current = [...apiHistoryRef.current, { role: 'assistant', content: fixedReply }];
