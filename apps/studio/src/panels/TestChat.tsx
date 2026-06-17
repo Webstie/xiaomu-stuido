@@ -136,14 +136,7 @@ interface Game2Sound {
 const FIRST_MEETING_QUESTION = '我们是第一次见面吗？';
 
 const START_CHATTING_INTRO =
-  '嗨！我来自彩虹缤纷镇，一个五彩缤纷的小地方。那里每座房子都有自己的歌，我们都相信，歌声里住着真正的自己。\n\n' +
-  '有一天，我许了个愿：去小镇外面，认识新朋友。也许他们的心里，也藏着一首歌。\n\n' +
-  '我相信：\n' +
-  '轻轻哼一哼，能让心里乱乱的感觉安静下来。\n' +
-  '稳稳的节拍，能让勇敢的种子发芽。\n' +
-  '一首简单的歌，能让人不再孤单。\n\n' +
-  '所以我翻山越岭来找你。我想和你一起唱歌，陪你找到你的音乐，分享你的心情，创作可爱的小歌。\n\n' +
-  '你的心里藏着一首歌。我好想听一听呀。';
+  '嗨！我来自彩虹缤纷镇，一个五彩缤纷的地方。那里的人们都喜欢唱歌，或者弹琴、拍手，用音乐说出心里的话。我相信音乐能让心情好起来，也能让人不再孤单。我走了很远来找你，想和你一起唱歌，找到你的歌。你几岁啦？我们一起唱吧！';
 
 const AGE_PROMPT = '你今年几岁呀？';
 const STORY_AGE_PROMPT = '你多大了呀？多少岁？';
@@ -264,23 +257,14 @@ const OLD_FRIEND_RECOGNITION = '原来我们是老朋友啊！';
 const OLD_FRIEND_AGE_TO_STORY = '好，那我给你分享一下我今天的故事。';
 
 const WEATHER_PROMPT =
-  '在我的家乡，我们喜欢用天气来形容我们的心情。\n' +
-  '☀️ 晴天\n' +
-  '太阳暖暖的，心里也亮亮的，想笑，想跑，想出去玩。\n' +
-  '☁️ 阴天\n' +
-  '天灰灰的，心里也灰灰的，不想说话，也没力气玩。\n' +
-  '☔ 下雨天\n' +
-  '雨滴滴答答，心里湿湿的、闷闷的，像衣服淋了雨没换。\n' +
-  '⚡ 雷雨天\n' +
-  '打雷了，心怦怦跳，有点怕，想躲进被子里。\n' +
-  '❄️ 下雪天\n' +
-  '雪花轻轻飘，心里静静的、软软的，像盖了一条软毯子。\n' +
-  '你觉得哪个天气可以代表你的心情啊？';
+  '在我们的家乡，我们喜欢用天气说心情：晴天太阳暖暖的，心里开心得想笑；雨天滴滴答答，有点难过；雪天轻轻飘，心里很安静；打雷时，轰隆隆，有点害怕。你觉得今天你的心情像哪个天气呀？';
 
-// 3-year-olds skip the thunderstorm option — too scary for the youngest kids.
+// Younger kids (≤7) get a shorter version that drops the snow option.
+const WEATHER_PROMPT_YOUNG =
+  '在我们的家乡，我们喜欢用天气说心情：晴天太阳暖暖的，心里开心得想笑；雨天滴滴答答，有点难过；打雷时，轰隆隆，有点害怕。你觉得今天你的心情像哪个天气呀？';
+
 function weatherPromptForAge(prompt: string, childAge: number): string {
-  if (childAge > 3) return prompt;
-  return prompt.replace(/\n?⚡\s*雷雨天\n[^\n]*/, '');
+  return childAge <= 7 ? WEATHER_PROMPT_YOUNG : prompt;
 }
 
 const RETURNING_SESSION_INTROS = [
@@ -1454,7 +1438,7 @@ export default function TestChat() {
               fixedReply = `${OLD_FRIEND_RECOGNITION}\n\n${getAgePrompt()}`;
               nextStep = 'returning-age';
             } else if (label === 'yes') {
-              fixedReply = `${getStartChattingIntro()}\n\n${getAgePrompt()}`;
+              fixedReply = getStartChattingIntro();
               nextStep = 'age';
             } else {
               // Truly ambiguous — re-ask but acknowledge the child's reply naturally.

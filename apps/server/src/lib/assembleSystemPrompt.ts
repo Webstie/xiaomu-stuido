@@ -286,21 +286,21 @@ export function assembleSystemPrompt(
           lines.push('## Stage 4 — Introduce the three magics and play revised');
           lines.push('The original melody just finished. **This turn MUST include BOTH:**');
           lines.push('  (a) Speak the three-magics intro:');
-          lines.push('      "哇！我们一起创造了一个音乐点子！🎉 但是音乐家们常常喜欢跟自己的音乐玩游戏，用不同的方式去改变它。我们来学几个音乐魔法吧！🦋 魔法一：换一个音符 — 换掉其中一个音符，听听看音乐会变得不一样。🐢🐇 魔法二：改变速度 — 速度就是音乐的快慢。⭐ 魔法三：加入一个新音符。现在，我们来听一听，这段音乐可以变出什么不一样的样子吧。"');
+          lines.push('      "哇！我们一起创造了一个音乐点子！但是音乐家们常常喜欢跟自己的音乐玩游戏，用不同的方式去改变它。我们来学几个音乐魔法吧！魔法一：换一个音符 — 换掉其中一个音符，听听看音乐会变得不一样。魔法二：改变速度 — 速度就是音乐的快慢。魔法三：加入一个新音符。现在，我们来听一听，这段音乐可以变出什么不一样的样子吧。"');
           lines.push(`  (b) Then call \`play_melody({ notes: ${JSON.stringify(notes ?? ['Do','Re','Mi'])}, variant: "revised" })\` in the SAME turn.`);
           lines.push('Without the tool call no music plays. END TURN after the tool call.');
         } else if (currentStage === 5) {
           lines.push('## Stage 5 — Menu prompt and play background');
           lines.push('The revised melody just finished. **This turn MUST include BOTH:**');
           lines.push('  (a) Speak the menu prompt verbatim:');
-          lines.push('      "现在轮到你当音乐探险家啦！1️⃣ 换一个音符  2️⃣ 改变速度  3️⃣ 加入一个新音符。慢慢来，没有标准答案。我好期待听到你创作的音乐！🌈"');
+          lines.push('      "现在轮到你当音乐探险家啦！1. 换一个音符  2. 改变速度  3. 加入一个新音符。慢慢来，没有标准答案。我好期待听到你创作的音乐！"');
           lines.push(`  (b) Then call \`play_melody({ notes: ${JSON.stringify(notes ?? ['Do','Re','Mi'])}, variant: "background" })\` in the SAME turn.`);
           lines.push('Without the tool call no music plays and the activity stalls. END TURN after the tool call. The studio will auto-send "继续" once the background has played through twice.');
         } else if (currentStage === 6) {
           lines.push('## Stage 6 — Closing and end_activity');
           lines.push('The background music just finished. **This turn MUST include BOTH:**');
           lines.push('  (a) Speak the closing line:');
-          lines.push('      "谢谢你今天和我一起创作音乐。🎵 你的音乐跟别人的不一样，因为它来自你心里。我会记住我们的音乐大冒险，下次我们可以一起创作新的东西！下次再来彩虹缤纷镇找我玩哦！🌈✨"');
+          lines.push('      "谢谢你今天和我一起创作音乐。你的音乐跟别人的不一样，因为它来自你心里。我会记住我们的音乐大冒险，下次我们可以一起创作新的东西！下次再来彩虹缤纷镇找我玩哦！"');
           lines.push('  (b) Then call `end_activity()` in the SAME turn.');
           lines.push('END TURN after end_activity. Do not invent any further stages.');
         }

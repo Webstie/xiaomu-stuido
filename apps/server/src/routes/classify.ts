@@ -17,10 +17,15 @@ const SCHEMAS = {
     labels: ['yes', 'no', 'unclear'] as const,
     instruction:
       'Classify the user text as a yes/no answer to a yes/no question. ' +
-      'Reply with exactly ONE word from: yes, no, unclear. ' +
-      'Examples: "是" → yes; "对" → yes; "嗯" → yes; "不" → no; "不是" → no; ' +
-      '"否" → no; "否定的" → no; "没有" → no; "no" → no; "yes" → yes; ' +
-      'unrelated chat → unclear.',
+      'Reply with exactly ONE word from: yes, no, unclear.\n' +
+      'Examples that are YES (affirmation, agreement, willingness to try): ' +
+      '"是", "对", "嗯", "好", "好的", "好呀", "好啊", "行", "可以", "yes", "ok", ' +
+      '"我想试试", "想试", "试试", "试一试", "试试看", "想试一下", ' +
+      '"我想尝试", "我想尝试一下", "尝试一下", "我要", "我想", "玩这个".\n' +
+      'Examples that are NO (refusal, negation, wanting something else): ' +
+      '"不", "不是", "否", "否定的", "没有", "no", "不要", "不想", "不玩了", ' +
+      '"换一个", "看别的", "其他的".\n' +
+      'Unrelated chat or genuinely ambiguous → unclear.',
   },
   mood: {
     labels: ['positive', 'negative', 'neutral', 'unclear'] as const,
