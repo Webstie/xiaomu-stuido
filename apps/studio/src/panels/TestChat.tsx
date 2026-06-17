@@ -18,7 +18,7 @@ import {
   Send, ChevronDown, ChevronUp, Copy, Check, Zap, ZapOff,
   Volume2, VolumeX, RotateCcw, Mic, MicOff,
   Play, Pause, SkipForward, X, Activity as ActivityIcon,
-  Trash2, PlayCircle, StopCircle, ShieldAlert, Baby,
+  Trash2, PlayCircle, StopCircle, ShieldAlert, Baby, Loader2,
 } from 'lucide-react';
 import type { ExpressionId } from '@xiaomu/contracts';
 import type {
@@ -27,7 +27,8 @@ import type {
   Safety as SafetyConfig,
 } from '@xiaomu/contracts';
 import FaceRenderer from '../face/FaceRenderer.js';
-import { assessUserRisk, classifyIntent, fetchConfig, fetchSystemPrompt, fetchTtsVisemes } from '../api/client.js';
+import { assessUserRisk, classifyIntent, fetchConfig, fetchSystemPrompt, fetchTtsVisemes, transcribeAudio } from '../api/client.js';
+import { VoiceInputRecorder } from '../audio/voice-input-recorder.js';
 import { startChatStream } from '../api/chatStream.js';
 import type { ChatMessage, ExpressionEvent } from '../api/chatStream.js';
 import { EXPRESSIONS } from '../face/expressions.js';
@@ -506,6 +507,15 @@ export default function TestChat() {
   const [liveUserTranscript, setLiveUserTranscript] = useState('');
   const [liveAssistantText, setLiveAssistantText] = useState('');
   const [rmsLevel, setRmsLevel] = useState(0);
+
+  // ── One-shot voice input (mic button in text mode) ───────────────────────
+  // Independent of voiceMode (Voice Live). Click → record → VAD auto-stop →
+  // Azure Speech REST transcribe → sendMessage(text). Click during recording
+  // cancels without sending.
+  const [voiceInputState, setVoiceInputState] = useState<'idle' | 'recording' | 'transcribing'>('idle');
+  const [voiceInputLevel, setVoiceInputLevel] = useState(0);
+  const [voiceInputError, setVoiceInputError] = useState<string | null>(null);
+  const voiceInputRecorderRef = useRef<VoiceInputRecorder | null>(null);
 
   // ── Active activity (from start_activity tool call) ──────────────────────
   const [activeActivity, setActiveActivity] = useState<
@@ -2568,6 +2578,62 @@ export default function TestChat() {
     voiceClientRef.current?.stopRecording();
   }, [recording]);
 
+  // ── One-shot voice input handler (mic button in text mode) ───────────────
+  const handleVoiceInputClick = useCallback(() => {
+    // Click during recording → cancel and release mic, no send.
+    if (voiceInputState === 'recording') {
+      voiceInputRecorderRef.current?.cancel();
+      return;
+    }
+    if (voiceInputState === 'transcribing') return;
+
+    setVoiceInputError(null);
+    const recorder = new VoiceInputRecorder();
+    voiceInputRecorderRef.current = recorder;
+
+    void recorder.start({
+      onStart: () => {
+        setVoiceInputState('recording');
+        cancelAutoAdvance();
+      },
+      onRms: (level) => setVoiceInputLevel(level),
+      onStopped: (wav) => {
+        setVoiceInputLevel(0);
+        setVoiceInputState('transcribing');
+        voiceInputRecorderRef.current = null;
+        void (async () => {
+          try {
+            const { text, status } = await transcribeAudio(wav, 'zh-CN');
+            if (text) {
+              sendMessageRef.current?.(text);
+            } else {
+              setVoiceInputError(status === 'NoMatch' ? '没听清楚,再说一次?' : '识别为空');
+            }
+          } catch (e) {
+            setVoiceInputError((e as Error).message);
+          } finally {
+            setVoiceInputState('idle');
+          }
+        })();
+      },
+      onCancelled: (reason) => {
+        setVoiceInputLevel(0);
+        setVoiceInputState('idle');
+        voiceInputRecorderRef.current = null;
+        if (reason === 'no-speech') setVoiceInputError('没听到声音');
+        else if (reason === 'error') setVoiceInputError('麦克风不可用');
+      },
+    }).catch((e: Error) => {
+      setVoiceInputState('idle');
+      setVoiceInputError(e.message);
+      voiceInputRecorderRef.current = null;
+    });
+  }, [voiceInputState, cancelAutoAdvance]);
+
+  useEffect(() => () => {
+    voiceInputRecorderRef.current?.cancel();
+  }, []);
+
   // ── Voice Live: spacebar PTT ──────────────────────────────────────────────
   useEffect(() => {
     if (!voiceMode) return;
@@ -2982,8 +3048,9 @@ export default function TestChat() {
               </div>
             ) : (
               /* Text input */
-              <div className="flex gap-2">
-                <textarea
+              <div className="flex flex-col gap-1">
+                <div className="flex gap-2">
+                  <textarea
                   value={input}
                   onChange={(e) => {
                     setInput(e.target.value);
@@ -2995,13 +3062,41 @@ export default function TestChat() {
                   placeholder={
                     !sessionActive
                       ? 'Click "Start chatting" to begin a session.'
-                      : streaming
-                        ? 'Type to interrupt… (Enter to send)'
-                        : 'Say something… (Enter to send)'
+                      : voiceInputState === 'recording'
+                        ? '正在听你说话… (再点麦克风取消)'
+                        : voiceInputState === 'transcribing'
+                          ? '识别中…'
+                          : streaming
+                            ? 'Type to interrupt… (Enter to send)'
+                            : 'Say something… (Enter to send, or click mic to speak)'
                   }
                   rows={2}
                   className="flex-1 resize-none bg-led-panel border border-led-border rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-purple-500 disabled:opacity-40 transition-colors"
                 />
+                <button
+                  onClick={handleVoiceInputClick}
+                  disabled={!sessionActive}
+                  title={
+                    voiceInputState === 'recording'
+                      ? 'Click to cancel'
+                      : voiceInputState === 'transcribing'
+                        ? 'Transcribing…'
+                        : 'Speak instead of typing'
+                  }
+                  className={`px-3 rounded-lg flex items-center transition-colors ${
+                    voiceInputState === 'recording'
+                      ? 'bg-rose-600 hover:bg-rose-500 animate-pulse'
+                      : voiceInputState === 'transcribing'
+                        ? 'bg-slate-700 cursor-wait'
+                        : 'bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed'
+                  }`}
+                >
+                  {voiceInputState === 'transcribing'
+                    ? <Loader2 size={16} className="text-white animate-spin" />
+                    : voiceInputState === 'recording'
+                      ? <Mic size={16} className="text-white" />
+                      : <Mic size={16} className="text-slate-300" />}
+                </button>
                 <button
                   onClick={() => sendMessage()}
                   disabled={!input.trim() || !sessionActive}
@@ -3010,6 +3105,21 @@ export default function TestChat() {
                 >
                   <Send size={16} className="text-white" />
                 </button>
+                </div>
+                {/* Voice-input status line: live level bar / error / hint */}
+                {voiceInputState === 'recording' && (
+                  <div className="flex items-center gap-2 px-1 h-3">
+                    <div className="flex-1 h-1 bg-slate-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-rose-400 transition-all duration-75"
+                        style={{ width: `${Math.min(100, voiceInputLevel * 600)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+                {voiceInputError && voiceInputState === 'idle' && (
+                  <div className="px-1 text-xs text-rose-400">{voiceInputError}</div>
+                )}
               </div>
             )}
           </div>

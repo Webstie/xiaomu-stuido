@@ -7,6 +7,7 @@ dotenvLoad({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '.
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
+import multipart from '@fastify/multipart';
 import { ensureDir, fileExists, writeJson } from './lib/fileStore.js';
 import { DEFAULT_CONFIG } from './lib/seeds.js';
 import { registerChatRoute } from './routes/chat.js';
@@ -16,6 +17,7 @@ import { registerVoiceLiveRoute } from './routes/voice-live.js';
 import { registerAudioRoutes } from './routes/audio.js';
 import { registerClassifyRoute } from './routes/classify.js';
 import { registerRiskRoute } from './routes/risk.js';
+import { registerTranscribeRoute } from './routes/transcribe.js';
 
 const PORT = parseInt(process.env['PORT'] ?? '8787', 10);
 
@@ -41,6 +43,9 @@ await app.register(cors, {
   origin: ['http://localhost:5173', 'http://localhost:5174'],
 });
 await app.register(websocket);
+await app.register(multipart, {
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB — well above a 15 s 16 kHz WAV (~480 KB)
+});
 
 // ── Auth middleware stub (swap for Entra later) ───────────────────────────────
 app.addHook('onRequest', async (req) => {
@@ -58,6 +63,7 @@ await registerRiskRoute(app);
 await registerVoiceLiveRoute(app);
 await registerAudioRoutes(app);
 await registerClassifyRoute(app);
+await registerTranscribeRoute(app);
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 try {
