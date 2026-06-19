@@ -603,7 +603,31 @@ export async function registerChatRoute(app: FastifyInstance): Promise<void> {
           if (choice.finish_reason) finishReason = choice.finish_reason;
         }
 
-        // Iter 0 held-text resolution: tool fired → discard, no tool → flush
+        // Iter 0 held-text resolution: tool fired → discard, no tool → flush.
+        // Recovery path: the model sometimes returns the tool call as a JSON
+        // string in the assistant content instead of as a structured
+        // `tool_calls` delta. When that happens, no tool fires and the JSON
+        // leaks to the user. Detect a leading `{"activity_id":"..."}` shape
+        // and synthesize a real tool call from it so the activity actually
+        // starts.
+        if (iter0WithTool && toolCalls.length === 0 && iter0HeldText.length > 0) {
+          const m = iter0HeldText.match(/^\s*(\{[^{}]*"activity_id"\s*:\s*"[^"]+"[^{}]*\})/);
+          if (m) {
+            try {
+              const args = JSON.parse(m[1]!) as Record<string, unknown>;
+              if (typeof args['activity_id'] === 'string') {
+                toolCalls.push({
+                  id: `synth_${Date.now()}`,
+                  name: 'start_activity',
+                  argsBuf: m[1]!,
+                });
+                iter0HeldText = iter0HeldText.slice(m[0].length);
+                log.warn({ recovered: m[1] }, 'recovered start_activity tool call from text content');
+              }
+            } catch { /* not valid JSON — leave held text alone */ }
+          }
+        }
+
         if (iter0WithTool && iter0HeldText.length > 0) {
           if (toolCalls.length > 0) {
             log.info({ suppressed: iter0HeldText.slice(0, 80) }, 'pre-tool text suppressed');
@@ -677,22 +701,17 @@ export async function registerChatRoute(app: FastifyInstance): Promise<void> {
           log.info({ tool: tc.name, args, result }, 'tool call resolved');
 
           // If the tool returned a scripted section to speak, prime the
-          // preamble stripper so the model's next iteration is aligned.
-          if (tc.name === 'start_activity') {
-            const sectionText = (result as StartActivityResult).currentSectionText;
-            if (sectionText) {
-              expectedScriptStart = sectionText.slice(0, PREAMBLE_PROBE_LEN);
-            }
-          }
-
-          // play_melody / end_activity — emit the canonical text directly.
-          // The model often falls silent on iter 1 after a forced tool call,
-          // leaving the chat with an empty assistant message. Emitting
-          // server-side here ensures the user always sees the narration (or
-          // the closing line) that goes with the tool.
+          // start_activity / play_melody / end_activity — emit the canonical
+          // text directly. The model often either falls silent on iter 1 OR
+          // freestyles around the script (we have seen it dump the tool args
+          // as raw JSON text before reciting an off-script reply). Emitting
+          // server-side here guarantees the user sees the right section /
+          // narration / closing line, and the preamble probe / max-buffer
+          // bail can never leak garbage to the client.
           let serverHandledThisTurn = false;
           let speakTextForTool: string | undefined;
-          if (tc.name === 'play_melody') speakTextForTool = (result as PlayMelodyResult).speakText;
+          if (tc.name === 'start_activity') speakTextForTool = (result as StartActivityResult).currentSectionText;
+          else if (tc.name === 'play_melody') speakTextForTool = (result as PlayMelodyResult).speakText;
           else if (tc.name === 'end_activity') speakTextForTool = (result as EndActivityResult).speakText;
           if (speakTextForTool) {
             const text = speakTextForTool;

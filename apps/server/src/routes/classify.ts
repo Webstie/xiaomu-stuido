@@ -36,8 +36,18 @@ const SCHEMAS = {
   goodbye: {
     labels: ['yes', 'no'] as const,
     instruction:
-      'Does the user text indicate they want to end the conversation / say goodbye? ' +
-      'Reply with exactly ONE word: yes or no.',
+      'Does the user text EXPLICITLY say goodbye / signal they want to end ' +
+      'the whole conversation with the robot? Reply with exactly ONE word: yes or no.\n' +
+      'Examples that are YES (explicit farewell): "再见", "拜拜", "88", "下次见", ' +
+      '"我要走了", "我先走了", "我下线了", "明天再聊", "bye", "goodbye", "see you", ' +
+      '"i\'m leaving", "talk to you later".\n' +
+      'Examples that are NO (acknowledgement / task done / mild refusal / ' +
+      'quitting an activity — NONE of these end the whole session): "好", "好了", ' +
+      '"好的", "好啊", "嗯", "对", "可以", "ok", "行", "明白了", "知道了", "做完了", ' +
+      '"完事了", "不想玩了", "不想做了", "停一下", "暂停", "换一个", "no", "stop", ' +
+      'short acks, mood replies, weather names, age numbers, game names, ' +
+      'note names, anything off-topic. ' +
+      'When unsure, choose NO — a false positive ends the session unnecessarily.',
   },
   'activity-intent': {
     labels: ['yes', 'no'] as const,

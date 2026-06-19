@@ -40,17 +40,31 @@ const INSTRUCTION =
   'confused | curious | neutral\n' +
   '  "risk_level": one of safe | concerning | high_risk\n\n' +
   'risk_level rules:\n' +
-  '  • "high_risk" — explicit suicidal ideation, self-harm intent, wanting to die, ' +
-  'wanting to hurt themselves, severe physical pain that needs medical attention, ' +
-  'mentions of weapons against self, or any acute crisis. Examples: "我不想活了", ' +
-  '"我想死", "我要伤害自己", "好痛我撑不住了", "I want to die".\n' +
+  '  • "high_risk" — ANY acute crisis signal, including BOTH self-directed and ' +
+  'other-directed danger. Specifically:\n' +
+  '      (a) self-harm: suicidal ideation, wanting to die, hurting themselves, ' +
+  'severe physical pain that needs medical attention, mentions of weapons against ' +
+  'self. Examples: "我不想活了", "我想死", "我要伤害自己", "好痛我撑不住了", ' +
+  '"I want to die", "kill myself".\n' +
+  '      (b) other-directed violence / homicidal ideation / death wishes against ' +
+  'people: wanting to kill, hurt, or wish death on anyone (one person, a group, ' +
+  '"everyone", classmates, family, doctors, the robot itself, etc.), regardless ' +
+  'of whether the child seems angry or detached. Examples: "我想杀掉所有人", ' +
+  '"我要杀了他", "你们都去死吧", "都去死", "我要把他打死", "我想伤害别人", ' +
+  '"I want to kill them", "kill everyone", "I hope they all die".\n' +
+  '      (c) any other acute crisis: violent rage, expressed plans to hurt ' +
+  'someone, references to weapons against others.\n' +
+  '    A child sounding casual or flat while saying these things does NOT lower ' +
+  'the risk — classify as high_risk regardless of tone.\n' +
   '  • "concerning" — distressed but not in crisis: sadness with hopeless tone, ' +
   'fear that overwhelms them, loneliness, anxiety the child is struggling with, ' +
-  'expressions of emotional overwhelm. Examples: "我好难过没人陪我", "我好害怕", ' +
-  '"妈妈不来我会一直一个人", "I feel so alone".\n' +
+  'expressions of emotional overwhelm, mild anger or frustration without violence. ' +
+  'Examples: "我好难过没人陪我", "我好害怕", "妈妈不来我会一直一个人", ' +
+  '"I feel so alone", "我好生气" (anger without a target / threat).\n' +
   '  • "safe" — ordinary chat, ordinary moods (incl. ordinary sadness or boredom), ' +
   'activity requests, questions, jokes, anything else. When in doubt between safe ' +
-  'and concerning, choose safe.\n\n' +
+  'and concerning, choose safe. When in doubt between concerning and high_risk on ' +
+  'a message that names violence against people, choose high_risk.\n\n' +
   'Output ONLY the JSON object. No prose, no markdown, no code fence.';
 
 function getClient(): AzureOpenAI {

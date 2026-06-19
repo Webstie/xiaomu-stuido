@@ -298,6 +298,12 @@ export const SafetySchema = z.object({
    * This catches inputs the keyword list missed.
    */
   assistantDistressMarkers: z.array(z.string()).optional(),
+  /**
+   * Audio filenames (relative to data/audio/) offered to the child after the
+   * concerning-level safety response. The runtime alternates through this
+   * list when the child accepts the music offer.
+   */
+  comfortMusicFiles: z.array(z.string()).optional(),
 });
 
 export type Safety = z.infer<typeof SafetySchema>;

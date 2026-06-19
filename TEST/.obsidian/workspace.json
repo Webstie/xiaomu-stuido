@@ -193,7 +193,42 @@
       "bases:Create new base": false
     }
   },
-  "active": "c6a6923dfc0d9c57",
+  "floating": {
+    "id": "16cde4d5c2d88ab5",
+    "type": "floating",
+    "children": [
+      {
+        "id": "0d4e87e4ce7e7427",
+        "type": "window",
+        "children": [
+          {
+            "id": "0614cc35090443ad",
+            "type": "tabs",
+            "children": [
+              {
+                "id": "72a81b1aa3783da5",
+                "type": "leaf",
+                "state": {
+                  "type": "empty",
+                  "state": {},
+                  "icon": "lucide-file",
+                  "title": "New tab"
+                }
+              }
+            ]
+          }
+        ],
+        "direction": "vertical",
+        "x": 223,
+        "y": 37,
+        "width": 1024,
+        "height": 800,
+        "maximize": false,
+        "zoom": 0
+      }
+    ]
+  },
+  "active": "72a81b1aa3783da5",
   "lastOpenFiles": [
     "FLOWCHART.md",
     "DIALOGUE_FLOWCHART.md",

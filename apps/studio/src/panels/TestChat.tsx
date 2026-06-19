@@ -16,7 +16,7 @@ import React, {
 } from 'react';
 import {
   Send, ChevronDown, ChevronUp, Copy, Check, Zap, ZapOff,
-  Volume2, VolumeX, RotateCcw, Mic, MicOff,
+  Volume2, VolumeX, RotateCcw, Mic, MicOff, Music,
   Play, Pause, SkipForward, X, Activity as ActivityIcon,
   Trash2, PlayCircle, StopCircle, ShieldAlert, Baby, Loader2,
 } from 'lucide-react';
@@ -64,7 +64,8 @@ type ScriptedSessionStep =
   | 'game-decide'
   | 'game-pool-exhausted'
   | 'game-1-completion'
-  | 'game-2-answer';
+  | 'game-2-answer'
+  | 'concerning-music-offer';
 
 // Game-recommendation state — driven by the weather the child names after the
 // WEATHER PROMPT. The four IDs map to the four real activities in default.json.
@@ -117,6 +118,35 @@ const GAME_START_LINE = '好啊,那我们现在就开始咯。';
 const GAME_POOL_EXHAUSTED_PROMPT = '那你想做什么呢?我们可以做呼吸练习、身体小乐队、音乐心情猜猜猜、或者三个音符变魔法。';
 const RE_ASK_GAME_NAME_UNMATCHED = '哎呀这个名字我好像没对上,不过我这里有这些游戏可以选:身体小乐队、跟着音乐深呼吸、音乐心情猜猜猜、三个音符变魔法。你对哪个好奇呀?';
 const RE_ASK_GAME_NAME_VAGUE = '太好啦!那你想先试哪一个呢?我这里有四种小游戏等着你呢,挑一个名字最吸引你的就行～';
+
+// Fixed safety responses — spoken in place of scripted dispatch / LLM when
+// the front-line safety check fires. These short-circuit BEFORE any scripted
+// step so distress can never be swallowed by the intro yes/no classifier.
+const HIGH_RISK_RESPONSE =
+  '如果你有时候心里特别难受,或者想伤害自己,请一定记住:这不是你的错。' +
+  '你可以马上跑到爸爸妈妈、老师,或者任何一个你信任的大人身边,拉住他们的手,' +
+  '说:"我需要帮助。"他们会抱住你,听你说话。\n\n' +
+  '你也可以随时打电话:\n\n' +
+  '12355——青少年心理咨询热线,专门帮助小朋友和大孩子\n' +
+  '400-161-9995——希望24热线,24小时危机干预热线';
+
+const CONCERNING_RESPONSE =
+  '听起来,你现在心里一定很沉重吧。谢谢你愿意告诉我这些。\n' +
+  '你不需要一个人扛着。有时候,和身边的人聊一聊——比如老师或者家人——真的会有帮助。' +
+  '我记得有一次,我在一次音乐表演里没有拿到自己想要的角色,那时候我也开始怀疑自己。' +
+  '后来,我去问了身边的人,他们给了很大的鼓励。他们告诉我这不是我的问题,只是那个角色不太适合我。\n\n' +
+  '如果实在找不到可以说话的人,就找个办法把压力释放出来吧:' +
+  '我们可以一起听一些轻柔的音乐,或者,如果你愿意,就这样慢慢地、深深地呼吸几次。\n\n' +
+  '要不要我现在放一段轻柔的音乐给你听?';
+
+// Module-level alternation cursor: rotates through
+// safety.comfortMusicFiles so every track gets played in turn, instead of
+// relying on Math.random (which the operator observed always landing on
+// the same file). Masked by files.length at use-time, so resizing the
+// config list mid-session doesn't break the rotation.
+let comfortMusicCursor = 0;
+const COMFORT_MUSIC_ACCEPTED = '好,我放一段给你听,你可以闭上眼睛慢慢呼吸。';
+const COMFORT_MUSIC_DECLINED = '好的,你想再说点什么我都在听。';
 
 type Game2SoundId = 'chicken' | 'wind' | 'rain' | 'dog' | 'bird';
 
@@ -524,6 +554,14 @@ export default function TestChat() {
   const emotionTimerRafRef = useRef<number | null>(null);
   const [autoAdvancePending, setAutoAdvancePending] = useState(false);
 
+  // Comfort music — soft track played after a `concerning` distress response
+  // when the child says yes. Rendered as a top banner (same shape as the
+  // activity-playlist bar), NOT an inline `<audio controls>` in the transcript.
+  const [comfortMusic, setComfortMusic] = useState<
+    { filename: string; paused: boolean } | null
+  >(null);
+  const comfortMusicAudioRef = useRef<HTMLAudioElement | null>(null);
+
   // Co-creation: play_melody result is queued here when it arrives mid-stream,
   // then released after the model's current TTS finishes — otherwise the music
   // starts on top of the Stage 4/5 narration the model is about to speak.
@@ -577,6 +615,47 @@ export default function TestChat() {
     activityAudioRef.current?.pause();
     activityAudioRef.current = null;
   }, []);
+
+  // Comfort music — drive a single hidden <audio> via state. The banner UI
+  // toggles `paused` and the X button sets comfortMusic to null.
+  useEffect(() => {
+    if (!comfortMusic) {
+      comfortMusicAudioRef.current?.pause();
+      comfortMusicAudioRef.current = null;
+      return;
+    }
+    const wanted = `/api/audio/file/${encodeURIComponent(comfortMusic.filename)}`;
+    let audio = comfortMusicAudioRef.current;
+    // New track (or first time) — spin up a fresh element. Comparing by full
+    // URL handles the case where the cursor advances to the same filename.
+    if (!audio || audio.src.split(location.origin).pop() !== wanted) {
+      audio?.pause();
+      audio = new Audio(wanted);
+      audio.volume = 0.7;
+      comfortMusicAudioRef.current = audio;
+      audio.addEventListener('ended', () => setComfortMusic(null));
+      audio.addEventListener('error', () => {
+        // eslint-disable-next-line no-console
+        console.error('[comfort-music] failed to load', wanted, audio?.error);
+        setComfortMusic(null);
+      });
+    }
+    if (comfortMusic.paused) {
+      if (!audio.paused) audio.pause();
+    } else if (audio.paused) {
+      void audio.play().catch((e) => {
+        // eslint-disable-next-line no-console
+        console.error('[comfort-music] play() rejected', e);
+      });
+    }
+  }, [comfortMusic]);
+
+  // End-session: kill comfort music too. handleEndSession only touches audioRef
+  // / activityAudioRef; this catches the comfort track on top of those.
+  useEffect(() => {
+    if (sessionActive) return;
+    if (comfortMusic) setComfortMusic(null);
+  }, [sessionActive, comfortMusic]);
 
   // Activity playlist: create new <audio> when playlist or track index changes
   useEffect(() => {
@@ -863,10 +942,6 @@ export default function TestChat() {
   // logic (scripted intro / activity / LLM). The message never reaches the
   // model, which also avoids Azure's content-policy filter tripping.
   const safetyRef = useRef<SafetyConfig | null>(null);
-  // Set true the first time distress is detected this session, so the panel
-  // can show a persistent caregiver-alert banner until the session ends.
-  const [distressFlagged, setDistressFlagged] = useState(false);
-
   // Free-form turn counter. Incremented when the child sends a non-silent
   // message while NOT in scripted intro and NOT inside an activity (activities
   // count as exactly one turn — the trigger). When count reaches
@@ -989,6 +1064,14 @@ export default function TestChat() {
     }
     cancelAnimationFrame(visemeRafRef.current);
     setVisemePlaybackMs(-1);
+  }, []);
+
+  // Close the comfort-music banner the moment the child engages again
+  // (sends a message). The banner has done its job; leaving it sitting as
+  // "Paused" feels stale. The lifecycle effect on comfortMusic stops the
+  // audio when the state goes to null.
+  const pauseComfortMusic = useCallback(() => {
+    setComfortMusic(null);
   }, []);
 
   // ── Play a one-shot sound effect (Game 2). Reuses audioRef so a new turn
@@ -1171,7 +1254,6 @@ export default function TestChat() {
     // Reset break-suggestion state for the new session.
     userTurnCountRef.current = 0;
     breakDueRef.current = false;
-    setDistressFlagged(false);
 
     // Begin scripted intro (read from config; falls back to file constant)
     const firstQ = getFirstMeetingQuestion();
@@ -1201,6 +1283,9 @@ export default function TestChat() {
     cancelRef.current?.();
     cancelRef.current = null;
     cancelAutoAdvance();
+    // Close the comfort-music banner entirely on End Session (don't leave it
+    // sitting as "Paused" — operator wants a clean slate).
+    setComfortMusic(null);
     endActivity();
     setSessionActive(false);
     setScriptedSessionStep('none');
@@ -1214,8 +1299,6 @@ export default function TestChat() {
     setFaceExpr('calm');
     userTurnCountRef.current = 0;
     breakDueRef.current = false;
-    // NB: distressFlagged is intentionally NOT cleared here so the caregiver
-    // banner persists after End Session. It's reset on Start Chatting only.
   }, [cancelAutoAdvance, endActivity]);
 
   // ── Send message ─────────────────────────────────────────────────────────
@@ -1225,6 +1308,9 @@ export default function TestChat() {
     if (!sessionActive) return; // require an active session
 
     cancelAutoAdvance();
+    // Always silence any playing comfort-music player before the new turn so
+    // TTS doesn't talk over it; the widget stays in the transcript for replay.
+    pauseComfortMusic();
 
     if (!opts.silent && !overrideText) setInput('');
 
@@ -1297,8 +1383,8 @@ export default function TestChat() {
     }
 
     if (safetyBlocked) {
-      // Stop any in-flight stream, audio, viseme tick, auto-advance timer,
-      // and active activity — distress overrides the session.
+      // high_risk OR keyword match: speak the fixed crisis-redirect message
+      // (trusted-adult + hotline numbers), then end the session.
       cancelRef.current?.();
       cancelRef.current = null;
       if (audioRef.current) {
@@ -1311,24 +1397,74 @@ export default function TestChat() {
       if (activeActivityRef.current) endActivity();
 
       const userMsg: Transcript = {
-        id: uid(), role: 'user', content: text, distressTrigger: true,
+        id: uid(), role: 'user', content: text,
       };
-      const errorMsg: Transcript = {
+      const responseMsg: Transcript = {
         id: uid(),
         role: 'assistant',
-        content:
-          '(Error: Distress signal detected — message blocked by the local safety filter. The robot will not respond. Please notify the on-shift caregiver before continuing.)',
-        distressResponse: true,
+        content: HIGH_RISK_RESPONSE,
       };
-      setTranscript((prev) => [...prev, userMsg, errorMsg]);
+      setTranscript((prev) => [...prev, userMsg, responseMsg]);
       // Intentionally NOT appended to apiHistoryRef — the LLM never sees
-      // the distress text and never sees the local block message, so a
-      // later turn can't accidentally resurface the phrase or the error.
-      setDistressFlagged(true);
-      setFaceExpr('anxious');
-      setTimeout(() => setFaceExpr('calm'), 1500);
-      // End the session — operator must restart via Start Chatting.
-      handleEndSession();
+      // the distress text and never sees this fixed reply, so a later
+      // turn can't accidentally echo the phrase or the hotline numbers.
+      // Skip distress UI flags (red highlight + caregiver banner) per
+      // operator request — the session ends, which is signal enough.
+      setStreaming(false);
+      setFaceExpr('gentle');
+      // waitForEnd:true is REQUIRED — without it callTts resolves on play()
+      // start, the finally fires immediately, and handleEndSession →
+      // endActivity → audioRef.pause() cuts the hotline message off mid-syllable.
+      try {
+        await callTts(HIGH_RISK_RESPONSE, responseMsg.id, { waitForEnd: true });
+      } finally {
+        setTimeout(() => setFaceExpr('calm'), 2000);
+        handleEndSession();
+      }
+      return;
+    }
+
+    if (concerningModeForThisTurn) {
+      // Concerning (distressed but not crisis): short-circuit BEFORE the
+      // scripted dispatch / LLM call and speak a fixed comforting reply.
+      // This is the top-priority override the operator asked for — without
+      // it, scripted yes/no classifiers would swallow phrases like
+      // "我好难受啊" as ambiguous answers to the intro question.
+      // Session stays active so the child can keep talking.
+      cancelRef.current?.();
+      cancelRef.current = null;
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      cancelAnimationFrame(visemeRafRef.current);
+      setVisemePlaybackMs(-1);
+      setVisemeStream([]);
+      if (activeActivityRef.current) endActivity();
+
+      const userMsg: Transcript = {
+        id: uid(), role: 'user', content: text,
+      };
+      const responseMsg: Transcript = {
+        id: uid(),
+        role: 'assistant',
+        content: CONCERNING_RESPONSE,
+      };
+      setTranscript((prev) => [...prev, userMsg, responseMsg]);
+      // Match the high_risk pattern: don't pollute apiHistory with the
+      // distress turn. The next user reply will be handled by the
+      // 'concerning-music-offer' step below (yes → play music, else → reset).
+      setStreaming(false);
+      setFaceExpr('gentle');
+      // Move into the music-offer step BEFORE TTS resolves, so a fast typer
+      // who answers mid-playback is already routed correctly.
+      setScriptedSessionStep('concerning-music-offer');
+      scriptedSessionStepRef.current = 'concerning-music-offer';
+      try {
+        await callTts(CONCERNING_RESPONSE, responseMsg.id);
+      } finally {
+        setTimeout(() => setFaceExpr('calm'), 2000);
+      }
       return;
     }
 
@@ -1401,6 +1537,61 @@ export default function TestChat() {
       }
       await scriptedReply();
     };
+
+    // ── Step 'concerning-music-offer' → child answers yes/no to "want to
+    // listen to soft music?" Yes → pick a random comfort track, speak the
+    // intro line, play it; No / unclear → speak the decline line; either
+    // way reset to 'none' so the next turn flows normally. We deliberately
+    // skip dispatchScriptedOrBypass: the child just heard a distress
+    // response, "activity intent" doesn't apply here.
+    if (effectiveStep === 'concerning-music-offer') {
+      const userMsg: Transcript = { id: uid(), role: 'user', content: text };
+      setTranscript((prev) => [...prev, userMsg]);
+      setStreaming(true);
+      setFaceExpr('thinking');
+
+      void (async () => {
+        let yesno: 'yes' | 'no' | 'unclear' = 'unclear';
+        try {
+          const raw = await classifyIntent(text, 'yesno');
+          if (raw === 'yes' || raw === 'no' || raw === 'unclear') yesno = raw;
+        } catch { /* default unclear */ }
+
+        const accepted = yesno === 'yes';
+        const reply = accepted ? COMFORT_MUSIC_ACCEPTED : COMFORT_MUSIC_DECLINED;
+
+        const replyMsg: Transcript = { id: uid(), role: 'assistant', content: reply };
+        setTranscript((prev) => [...prev, replyMsg]);
+        setScriptedSessionStep('none');
+        scriptedSessionStepRef.current = 'none';
+        setFaceExpr('gentle');
+        // waitForEnd:true so the comfort music starts AFTER the intro line
+        // ("好,我放一段给你听...") finishes, not on top of it.
+        try {
+          await callTts(reply, replyMsg.id, { waitForEnd: true });
+        } finally {
+          setStreaming(false);
+          setTimeout(() => setFaceExpr('calm'), 1000);
+        }
+
+        if (accepted) {
+          const files = (safetyRef.current?.comfortMusicFiles ?? []).filter((f) => f.trim());
+          if (files.length > 0) {
+            const pick = files[comfortMusicCursor % files.length]!;
+            comfortMusicCursor = (comfortMusicCursor + 1) % files.length;
+            // eslint-disable-next-line no-console
+            console.log('[comfort-music] playing', pick);
+            // Drive the top banner. The lifecycle effect on comfortMusic
+            // creates the <audio> element and starts playback.
+            setComfortMusic({ filename: pick, paused: false });
+          } else {
+            // eslint-disable-next-line no-console
+            console.warn('[comfort-music] no files configured in safety.comfortMusicFiles');
+          }
+        }
+      })();
+      return;
+    }
 
     if (effectiveStep === 'first-meeting') {
       // Show the user message immediately; show a streaming placeholder while
@@ -2166,7 +2357,6 @@ export default function TestChat() {
         childAge: childAgeRef.current,
         messages: history,
         ...(activityContext ? { activityContext } : {}),
-        ...(concerningModeForThisTurn ? { concerningMode: true } : {}),
       },
       {
         onText(delta) {
@@ -2402,7 +2592,6 @@ export default function TestChat() {
               }
               return prev;
             });
-            setDistressFlagged(true);
             setFaceExpr('anxious');
             setTimeout(() => setFaceExpr('calm'), 1500);
             // End the session on safety filter — operator must restart.
@@ -2416,7 +2605,7 @@ export default function TestChat() {
     );
 
     cancelRef.current = cancel;
-  }, [input, sessionActive, streaming, transcript, therapyMode, activeActivity, activitySectionIndex, callTts, cancelAutoAdvance, endActivity, handleEndSession]);
+  }, [input, sessionActive, streaming, transcript, therapyMode, activeActivity, activitySectionIndex, callTts, cancelAutoAdvance, endActivity, handleEndSession, pauseComfortMusic]);
 
   // Keep ref up-to-date so audio.ended can invoke the latest sendMessage
   sendMessageRef.current = sendMessage;
@@ -2741,22 +2930,48 @@ export default function TestChat() {
         </div>
       )}
 
+      {/* Comfort-music banner — same shape as the activity bar */}
+      {comfortMusic && (
+        <div className="mb-3 flex items-center gap-3 rounded-lg border border-purple-500/40 bg-purple-500/10 px-3 py-2 flex-shrink-0">
+          <Music size={14} className="text-purple-400 flex-shrink-0" />
+          <div className="flex-shrink-0">
+            <div className="text-[9px] uppercase tracking-widest text-purple-400/70">
+              Comfort music
+            </div>
+            <div className="text-sm font-medium text-purple-200 leading-tight">
+              {comfortMusic.paused ? 'Paused' : 'Now playing'}
+            </div>
+          </div>
+          <div className="h-7 w-px bg-purple-500/30" />
+          <button
+            onClick={() => setComfortMusic((cm) => (cm ? { ...cm, paused: !cm.paused } : cm))}
+            title={comfortMusic.paused ? 'Play' : 'Pause'}
+            className="flex items-center justify-center w-7 h-7 rounded-full bg-purple-600/70 text-white hover:bg-purple-500 transition-colors flex-shrink-0"
+          >
+            {comfortMusic.paused
+              ? <Play size={11} className="ml-0.5" />
+              : <Pause size={11} />}
+          </button>
+          <div className="flex-1 min-w-0 text-xs text-purple-200">
+            <div className="truncate" title={comfortMusic.filename}>
+              {comfortMusic.filename}
+            </div>
+          </div>
+          <button
+            onClick={() => setComfortMusic(null)}
+            title="Stop"
+            className="ml-auto flex items-center justify-center w-6 h-6 rounded text-purple-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors flex-shrink-0"
+          >
+            <X size={13} />
+          </button>
+        </div>
+      )}
+
       {/* Two-column body */}
       <div className="flex gap-6 flex-1 min-h-0">
 
         {/* ── Left: chat (60%) ──────────────────────────────────────────── */}
         <div className="flex flex-col flex-[3] min-w-0 gap-3">
-
-          {/* Caregiver alert — sticks once distress is detected, clears on session end */}
-          {distressFlagged && (
-            <div className="rounded-md border border-rose-500/50 bg-rose-500/10 px-3 py-2 text-xs text-rose-100 flex items-start gap-2">
-              <ShieldAlert size={14} className="text-rose-300 mt-0.5 flex-shrink-0" />
-              <div className="leading-relaxed">
-                {safetyRef.current?.distressCaregiverNote
-                  ?? '⚠️ Distress signal detected this session. Please notify the on-shift caregiver before continuing.'}
-              </div>
-            </div>
-          )}
 
           {/* Transcript */}
           <div
