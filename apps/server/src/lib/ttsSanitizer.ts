@@ -47,6 +47,17 @@ const EMOJI_LABELS: Record<string, string> = {
   '🎶': '音符',
 };
 
+/** Per-digit Mandarin readings used for phone numbers / long codes. */
+const DIGIT_HANZI: Record<string, string> = {
+  '0': '零', '1': '一', '2': '二', '3': '三', '4': '四',
+  '5': '五', '6': '六', '7': '七', '8': '八', '9': '九',
+};
+function digitsToHanzi(digits: string): string {
+  let out = '';
+  for (const c of digits) out += DIGIT_HANZI[c] ?? c;
+  return out;
+}
+
 /**
  * XML-escape a plain text segment (no tags).
  * Only escapes &, <, > — attributes are not in scope here.
@@ -78,26 +89,26 @@ function processTextSegments(mixed: string): string {
       let t = xmlEscape(part);
       // Wrap digit runs. Three cases handled in ONE sweep so the inner
       // SSML markup we emit can't get re-matched by a follow-up pass:
-      //   1. Phone-shape (digit groups joined by - or .)        → digit-by-digit
-      //      e.g. "400-161-9995" → "四 零 零 (pause) 一 六 一 (pause) 九 九 九 五"
-      //   2. Bare run of 5+ digits (hotline, postcode, ID-like) → digit-by-digit
-      //      e.g. "12355" → "一 二 三 五 五" (not "twelve thousand three hundred…")
-      //   3. Short run (1–4 digits)                             → cardinal
+      //   1. Phone-shape (digit groups joined by - or .)        → spell out hanzi
+      //      e.g. "400-161-9995" → "四零零 一六一 九九九五"
+      //   2. Bare run of 5+ digits (hotline, postcode, ID-like) → spell out hanzi
+      //      e.g. "12355" → "一二三五五" (not "twelve thousand three hundred…")
+      //   3. Short run (1–4 digits)                             → cardinal SSML
       //      e.g. "7" / "100" → "七" / "一百"
+      //
+      // Reason for cases 1 & 2 not using <say-as interpret-as="digits">:
+      // the zh-CN multilingual voices observably ignore that hint and still
+      // read "400" as 四百. Replacing the literal characters bypasses the
+      // ambiguity — TTS has nothing left to interpret.
       t = t.replace(/\d+(?:[-.]\d+)+|\d+/g, (match) => {
         if (/[-.]/.test(match)) {
-          // Phone-shape: read each digit group as digits, separator → 200ms break
           return match
             .split(/([-.])/)
-            .map((p) =>
-              /^\d+$/.test(p)
-                ? `<say-as interpret-as="digits">${p}</say-as>`
-                : '<break time="200ms"/>',
-            )
+            .map((p) => (/^\d+$/.test(p) ? digitsToHanzi(p) : ' '))
             .join('');
         }
         if (match.length >= 5) {
-          return `<say-as interpret-as="digits">${match}</say-as>`;
+          return digitsToHanzi(match);
         }
         return `<say-as interpret-as="cardinal">${match}</say-as>`;
       });
