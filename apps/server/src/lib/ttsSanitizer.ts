@@ -76,8 +76,31 @@ function processTextSegments(mixed: string): string {
       }
       // Text segment: XML-escape, then wrap digits, then add breaks
       let t = xmlEscape(part);
-      // Wrap digit runs
-      t = t.replace(/\d+/g, '<say-as interpret-as="cardinal">$&</say-as>');
+      // Wrap digit runs. Three cases handled in ONE sweep so the inner
+      // SSML markup we emit can't get re-matched by a follow-up pass:
+      //   1. Phone-shape (digit groups joined by - or .)        → digit-by-digit
+      //      e.g. "400-161-9995" → "四 零 零 (pause) 一 六 一 (pause) 九 九 九 五"
+      //   2. Bare run of 5+ digits (hotline, postcode, ID-like) → digit-by-digit
+      //      e.g. "12355" → "一 二 三 五 五" (not "twelve thousand three hundred…")
+      //   3. Short run (1–4 digits)                             → cardinal
+      //      e.g. "7" / "100" → "七" / "一百"
+      t = t.replace(/\d+(?:[-.]\d+)+|\d+/g, (match) => {
+        if (/[-.]/.test(match)) {
+          // Phone-shape: read each digit group as digits, separator → 200ms break
+          return match
+            .split(/([-.])/)
+            .map((p) =>
+              /^\d+$/.test(p)
+                ? `<say-as interpret-as="digits">${p}</say-as>`
+                : '<break time="200ms"/>',
+            )
+            .join('');
+        }
+        if (match.length >= 5) {
+          return `<say-as interpret-as="digits">${match}</say-as>`;
+        }
+        return `<say-as interpret-as="cardinal">${match}</say-as>`;
+      });
       // Insert break after Mandarin sentence-ending punctuation
       t = t.replace(/([。！？…])/g, '$1<break time="100ms"/>');
       return t;
