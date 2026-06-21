@@ -185,8 +185,8 @@ interface EndActivityResult {
 }
 
 const CO_CREATION_CLOSING_TEXT =
-  '谢谢你今天和我一起创作音乐。🎵 你的音乐跟别人的不一样，因为它来自你心里。' +
-  '我会记住我们的音乐大冒险，下次我们可以一起创作新的东西！下次再来彩虹缤纷镇找我玩哦！🌈✨';
+  '谢谢你今天和我一起创作音乐。你的音乐跟别人的不一样，因为它来自你心里。' +
+  '我会记住我们的音乐大冒险，下次我们可以一起创作新的东西！下次再来彩虹缤纷镇找我玩哦！';
 
 /**
  * Infer which co-creation stage we're on by scanning the assistant's prior
@@ -244,13 +244,13 @@ async function resolvePlayMelody(
     speakText = '选得真好！我们来听听你的音乐听起来是什么样子的。';
   } else if (variant === 'revised') {
     speakText =
-      '哇！我们一起创造了一个音乐点子！🎉 但是音乐家们常常喜欢跟自己的音乐玩游戏，用不同的方式去改变它。' +
-      '🦋 魔法一：换一个音符 — 换掉其中一个音符，听听看音乐会变得不一样。' +
-      '🐢🐇 魔法二：改变速度 — 速度就是音乐的快慢。' +
-      '⭐ 魔法三：加入一个新音符。现在，我们来听一听，这段音乐可以变出什么不一样的样子吧。';
+      '哇！我们一起创造了一个音乐点子！但是音乐家们常常喜欢跟自己的音乐玩游戏，用不同的方式去改变它。' +
+      '魔法一：换一个音符 — 换掉其中一个音符，听听看音乐会变得不一样。' +
+      '魔法二：改变速度 — 速度就是音乐的快慢。' +
+      '魔法三：加入一个新音符。现在，我们来听一听，这段音乐可以变出什么不一样的样子吧。';
   } else /* background */ {
     speakText =
-      '现在轮到你当音乐探险家啦！1️⃣ 换一个音符  2️⃣ 改变速度  3️⃣ 加入一个新音符。慢慢来，没有标准答案。我好期待听到你创作的音乐！🌈';
+      '现在轮到你当音乐探险家啦！1. 换一个音符  2. 改变速度  3. 加入一个新音符。慢慢来，没有标准答案。我好期待听到你创作的音乐！';
   }
 
   return {
@@ -292,13 +292,13 @@ function resolveStartActivity(
   if (activity.coCreation) {
     const notesList = activity.coCreation.notes.join(' / ');
     const stage1 =
-      `哇！现在轮到你来当一个小小音乐创作者啦！🌟 ` +
+      `哇！现在轮到你来当一个小小音乐创作者啦！` +
       `你知道吗？有些音乐家在演奏的时候，会一边弹一边编出新的音乐。这叫做"即兴创作"。` +
       `即兴创作就是去探索新的音乐点子，看看它们会带你到哪里去。没有对错，也没有"弹错"的说法。` +
       `你发出的每一个声音，都可以成为你音乐的一部分！\n\n` +
       `今天，我们要一起来创作一首小小的歌。\n\n` +
       `首先，我们来收集一些音乐宝藏吧！请选出三个音符：\n` +
-      `🎵 1 = Do\n🎵 2 = Re\n🎵 3 = Mi\n🎵 4 = Fa\n🎵 5 = Sol\n🎵 6 = La\n🎵 7 = Ti\n\n` +
+      `1 = Do\n2 = Re\n3 = Mi\n4 = Fa\n5 = Sol\n6 = La\n7 = Ti\n\n` +
       `你想要哪三个音符呢？`;
     return {
       ok: true,
@@ -603,7 +603,31 @@ export async function registerChatRoute(app: FastifyInstance): Promise<void> {
           if (choice.finish_reason) finishReason = choice.finish_reason;
         }
 
-        // Iter 0 held-text resolution: tool fired → discard, no tool → flush
+        // Iter 0 held-text resolution: tool fired → discard, no tool → flush.
+        // Recovery path: the model sometimes returns the tool call as a JSON
+        // string in the assistant content instead of as a structured
+        // `tool_calls` delta. When that happens, no tool fires and the JSON
+        // leaks to the user. Detect a leading `{"activity_id":"..."}` shape
+        // and synthesize a real tool call from it so the activity actually
+        // starts.
+        if (iter0WithTool && toolCalls.length === 0 && iter0HeldText.length > 0) {
+          const m = iter0HeldText.match(/^\s*(\{[^{}]*"activity_id"\s*:\s*"[^"]+"[^{}]*\})/);
+          if (m) {
+            try {
+              const args = JSON.parse(m[1]!) as Record<string, unknown>;
+              if (typeof args['activity_id'] === 'string') {
+                toolCalls.push({
+                  id: `synth_${Date.now()}`,
+                  name: 'start_activity',
+                  argsBuf: m[1]!,
+                });
+                iter0HeldText = iter0HeldText.slice(m[0].length);
+                log.warn({ recovered: m[1] }, 'recovered start_activity tool call from text content');
+              }
+            } catch { /* not valid JSON — leave held text alone */ }
+          }
+        }
+
         if (iter0WithTool && iter0HeldText.length > 0) {
           if (toolCalls.length > 0) {
             log.info({ suppressed: iter0HeldText.slice(0, 80) }, 'pre-tool text suppressed');
@@ -677,22 +701,17 @@ export async function registerChatRoute(app: FastifyInstance): Promise<void> {
           log.info({ tool: tc.name, args, result }, 'tool call resolved');
 
           // If the tool returned a scripted section to speak, prime the
-          // preamble stripper so the model's next iteration is aligned.
-          if (tc.name === 'start_activity') {
-            const sectionText = (result as StartActivityResult).currentSectionText;
-            if (sectionText) {
-              expectedScriptStart = sectionText.slice(0, PREAMBLE_PROBE_LEN);
-            }
-          }
-
-          // play_melody / end_activity — emit the canonical text directly.
-          // The model often falls silent on iter 1 after a forced tool call,
-          // leaving the chat with an empty assistant message. Emitting
-          // server-side here ensures the user always sees the narration (or
-          // the closing line) that goes with the tool.
+          // start_activity / play_melody / end_activity — emit the canonical
+          // text directly. The model often either falls silent on iter 1 OR
+          // freestyles around the script (we have seen it dump the tool args
+          // as raw JSON text before reciting an off-script reply). Emitting
+          // server-side here guarantees the user sees the right section /
+          // narration / closing line, and the preamble probe / max-buffer
+          // bail can never leak garbage to the client.
           let serverHandledThisTurn = false;
           let speakTextForTool: string | undefined;
-          if (tc.name === 'play_melody') speakTextForTool = (result as PlayMelodyResult).speakText;
+          if (tc.name === 'start_activity') speakTextForTool = (result as StartActivityResult).currentSectionText;
+          else if (tc.name === 'play_melody') speakTextForTool = (result as PlayMelodyResult).speakText;
           else if (tc.name === 'end_activity') speakTextForTool = (result as EndActivityResult).speakText;
           if (speakTextForTool) {
             const text = speakTextForTool;

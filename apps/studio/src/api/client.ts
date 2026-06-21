@@ -109,3 +109,25 @@ export async function fetchTtsVisemes(
   if (!res.ok) throw new Error(`POST /api/tts/visemes: ${res.status}`);
   return res.json() as Promise<TtsVisemesResponse>;
 }
+
+export async function transcribeAudio(
+  blob: Blob,
+  language = 'zh-CN',
+): Promise<{ text: string; status: string }> {
+  const form = new FormData();
+  form.append('audio', blob, 'utterance.wav');
+  const res = await fetch(`/api/transcribe?language=${encodeURIComponent(language)}`, {
+    method: 'POST',
+    body: form,
+  });
+  const data = (await res.json()) as {
+    text?: string;
+    status?: string;
+    error?: string;
+    detail?: string;
+  };
+  if (!res.ok || data.error) {
+    throw new Error(data.error || `POST /api/transcribe: ${res.status}`);
+  }
+  return { text: (data.text || '').trim(), status: data.status || 'Unknown' };
+}

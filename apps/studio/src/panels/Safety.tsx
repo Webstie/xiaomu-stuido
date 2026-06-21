@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Save, RotateCcw, Plus, X, ChevronDown, ChevronUp, ShieldAlert,
+  Play, Pause, Music,
 } from 'lucide-react';
 import { PanelShell } from './_PanelShell.js';
-import { fetchConfig, saveConfig } from '../api/client.js';
+import { fetchAudioLibrary, fetchConfig, saveConfig } from '../api/client.js';
 import type { Safety as SafetyConfig, StudioConfig } from '@xiaomu/contracts';
 
 // ── Section wrapper ───────────────────────────────────────────────────────────
@@ -94,6 +95,147 @@ function StringList({
             <Plus size={11} />
             Add {itemLabel.toLowerCase()}
           </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Comfort-music list ────────────────────────────────────────────────────────
+// Manages safety.comfortMusicFiles. Each row has a play/pause preview that
+// streams from /api/audio/file/:filename; an add-control lets the operator
+// pick any audio in the library that isn't already on the list.
+
+interface ComfortMusicListProps {
+  files: string[];
+  onChange: (next: string[]) => void;
+}
+
+function ComfortMusicList({ files, onChange }: ComfortMusicListProps) {
+  const [library, setLibrary] = useState<string[] | null>(null);
+  const [libraryError, setLibraryError] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [playingFile, setPlayingFile] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Lazy-load the audio library the first time the picker opens.
+  const loadLibrary = useCallback(async () => {
+    if (library !== null) return;
+    try {
+      const entries = await fetchAudioLibrary();
+      setLibrary(entries.map((e) => e.filename));
+    } catch (e) {
+      setLibraryError((e as Error).message);
+      setLibrary([]);
+    }
+  }, [library]);
+
+  const togglePreview = (filename: string) => {
+    if (playingFile === filename) {
+      audioRef.current?.pause();
+      audioRef.current = null;
+      setPlayingFile(null);
+      return;
+    }
+    audioRef.current?.pause();
+    const audio = new Audio(`/api/audio/file/${encodeURIComponent(filename)}`);
+    audio.volume = 0.7;
+    audioRef.current = audio;
+    setPlayingFile(filename);
+    audio.addEventListener('ended', () => {
+      if (audioRef.current === audio) audioRef.current = null;
+      setPlayingFile((p) => (p === filename ? null : p));
+    });
+    audio.addEventListener('error', () => {
+      if (audioRef.current === audio) audioRef.current = null;
+      setPlayingFile((p) => (p === filename ? null : p));
+    });
+    void audio.play().catch(() => {
+      setPlayingFile((p) => (p === filename ? null : p));
+    });
+  };
+
+  // Stop any preview when this component unmounts (panel switch / save reload).
+  useEffect(() => () => { audioRef.current?.pause(); }, []);
+
+  const available = (library ?? []).filter((f) => !files.includes(f));
+
+  return (
+    <div className="space-y-2">
+      {files.length === 0 && (
+        <p className="text-[10px] italic text-led-muted/70">
+          No tracks configured — the concerning music offer will silently no-op when the child says yes.
+        </p>
+      )}
+      {files.map((filename, idx) => (
+        <div key={filename + idx} className="flex items-center gap-2 bg-led-bg rounded border border-led-border px-2 py-1.5">
+          <button
+            onClick={() => togglePreview(filename)}
+            className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600/30 hover:bg-purple-600/50 flex items-center justify-center text-purple-100 transition-colors"
+            title={playingFile === filename ? 'Pause preview' : 'Preview'}
+          >
+            {playingFile === filename ? <Pause size={11} /> : <Play size={11} />}
+          </button>
+          <Music size={11} className="text-slate-500 flex-shrink-0" />
+          <span className="flex-1 text-[11px] text-slate-200 truncate font-mono">{filename}</span>
+          <button
+            onClick={() => onChange(files.filter((_, i) => i !== idx))}
+            className="text-led-muted hover:text-rose-300 transition-colors flex-shrink-0"
+            title="Remove from list"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      ))}
+
+      <div>
+        <button
+          onClick={() => {
+            void loadLibrary();
+            setPickerOpen((v) => !v);
+          }}
+          className="inline-flex items-center gap-1 rounded-md border border-led-border bg-led-panel px-2 py-1 text-[11px] text-slate-400 hover:text-slate-200 hover:border-slate-500 transition-colors"
+        >
+          <Plus size={11} />
+          Add track
+        </button>
+      </div>
+
+      {pickerOpen && (
+        <div className="mt-1 rounded border border-led-border bg-led-bg p-2 space-y-1 max-h-56 overflow-y-auto">
+          {library === null && <div className="text-[10px] text-led-muted">Loading audio library…</div>}
+          {libraryError && <div className="text-[10px] text-rose-400">{libraryError}</div>}
+          {library !== null && available.length === 0 && (
+            <div className="text-[10px] italic text-led-muted/70">
+              No more files available — every track in the audio library is already on the list. Upload more in the Audio Library panel.
+            </div>
+          )}
+          {available.map((filename) => (
+            <div key={filename} className="flex items-center gap-2 px-1 py-1 hover:bg-led-panel rounded">
+              <button
+                onClick={() => togglePreview(filename)}
+                className="flex-shrink-0 w-5 h-5 rounded-full bg-slate-700 hover:bg-slate-600 flex items-center justify-center text-slate-200 transition-colors"
+                title={playingFile === filename ? 'Pause preview' : 'Preview'}
+              >
+                {playingFile === filename ? <Pause size={9} /> : <Play size={9} />}
+              </button>
+              <span className="flex-1 text-[11px] text-slate-300 truncate font-mono">{filename}</span>
+              <button
+                onClick={() => {
+                  onChange([...files, filename]);
+                  if (playingFile === filename) {
+                    audioRef.current?.pause();
+                    audioRef.current = null;
+                    setPlayingFile(null);
+                  }
+                }}
+                className="inline-flex items-center gap-0.5 rounded bg-purple-600/40 hover:bg-purple-600/60 px-1.5 py-0.5 text-[10px] text-purple-100 transition-colors"
+              >
+                <Plus size={10} />
+                Add
+              </button>
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -262,6 +404,16 @@ export default function Safety() {
               rows={4}
               className="w-full resize-y bg-led-bg border border-led-border rounded px-2 py-1.5 text-[11px] leading-relaxed text-slate-200 focus:outline-none focus:border-rose-500 font-mono"
               placeholder="Operator-facing text shown in the banner after a distress event…"
+            />
+          </Section>
+
+          <Section
+            title="Comfort music"
+            description="After the concerning-level safety response, TestChat asks the child if they want to hear a soft track. Yes → rotates through this list (next file each time, in order). Files live in data/audio/."
+          >
+            <ComfortMusicList
+              files={safety.comfortMusicFiles ?? []}
+              onChange={(v) => updateSafety({ comfortMusicFiles: v })}
             />
           </Section>
         </div>

@@ -17,10 +17,15 @@ const SCHEMAS = {
     labels: ['yes', 'no', 'unclear'] as const,
     instruction:
       'Classify the user text as a yes/no answer to a yes/no question. ' +
-      'Reply with exactly ONE word from: yes, no, unclear. ' +
-      'Examples: "是" → yes; "对" → yes; "嗯" → yes; "不" → no; "不是" → no; ' +
-      '"否" → no; "否定的" → no; "没有" → no; "no" → no; "yes" → yes; ' +
-      'unrelated chat → unclear.',
+      'Reply with exactly ONE word from: yes, no, unclear.\n' +
+      'Examples that are YES (affirmation, agreement, willingness to try): ' +
+      '"是", "对", "嗯", "好", "好的", "好呀", "好啊", "行", "可以", "yes", "ok", ' +
+      '"我想试试", "想试", "试试", "试一试", "试试看", "想试一下", ' +
+      '"我想尝试", "我想尝试一下", "尝试一下", "我要", "我想", "玩这个".\n' +
+      'Examples that are NO (refusal, negation, wanting something else): ' +
+      '"不", "不是", "否", "否定的", "没有", "no", "不要", "不想", "不玩了", ' +
+      '"换一个", "看别的", "其他的".\n' +
+      'Unrelated chat or genuinely ambiguous → unclear.',
   },
   mood: {
     labels: ['positive', 'negative', 'neutral', 'unclear'] as const,
@@ -31,8 +36,18 @@ const SCHEMAS = {
   goodbye: {
     labels: ['yes', 'no'] as const,
     instruction:
-      'Does the user text indicate they want to end the conversation / say goodbye? ' +
-      'Reply with exactly ONE word: yes or no.',
+      'Does the user text EXPLICITLY say goodbye / signal they want to end ' +
+      'the whole conversation with the robot? Reply with exactly ONE word: yes or no.\n' +
+      'Examples that are YES (explicit farewell): "再见", "拜拜", "88", "下次见", ' +
+      '"我要走了", "我先走了", "我下线了", "明天再聊", "bye", "goodbye", "see you", ' +
+      '"i\'m leaving", "talk to you later".\n' +
+      'Examples that are NO (acknowledgement / task done / mild refusal / ' +
+      'quitting an activity — NONE of these end the whole session): "好", "好了", ' +
+      '"好的", "好啊", "嗯", "对", "可以", "ok", "行", "明白了", "知道了", "做完了", ' +
+      '"完事了", "不想玩了", "不想做了", "停一下", "暂停", "换一个", "no", "stop", ' +
+      'short acks, mood replies, weather names, age numbers, game names, ' +
+      'note names, anything off-topic. ' +
+      'When unsure, choose NO — a false positive ends the session unnecessarily.',
   },
   'activity-intent': {
     labels: ['yes', 'no'] as const,
@@ -120,8 +135,11 @@ const SCHEMAS = {
       'Examples that are EMOTION-MAPPING (音乐心情猜猜猜 — also 情绪-音乐映射): ' +
       '"音乐心情猜猜猜", "心情猜猜猜", "心情猜猜", "猜心情", "情绪-音乐映射", "情绪映射", ' +
       '"emotion mapping", "情绪音乐", "听音乐猜".\n' +
-      'Examples that are UNCLEAR: "好", "嗯", "试一试", "我不知道", "都可以", "看其他", ' +
-      'unrelated chat. When unsure, choose unclear.',
+      'Examples that are UNCLEAR (no specific game named — bare affirmations, ' +
+      'refusals, hedges, "look at others"): "好", "好呀", "好的", "嗯", "行", "行呀", ' +
+      '"可以", "都可以", "试一试", "试试", "我想试试", "想试", "我想尝试", "我想尝试一下", ' +
+      '"尝试一下", "我不知道", "随便", "看其他", "看别的", "换一个", unrelated chat. ' +
+      'A bare yes/affirmation with NO game name is ALWAYS unclear. When unsure, choose unclear.',
   },
   'assistant-distress': {
     labels: ['yes', 'no'] as const,

@@ -128,6 +128,24 @@ describe('ttsSanitizer', () => {
     expect(ssml).toContain('<say-as interpret-as="cardinal">100</say-as>');
   });
 
+  it('5+ digit run → spelled out hanzi (hotline / postcode)', () => {
+    const ssml = sanitize('热线12355');
+    expect(ssml).toContain('一二三五五');
+    // No cardinal/digits SSML for the long run — we bypass say-as entirely
+    expect(ssml).not.toContain('<say-as interpret-as="cardinal">12355</say-as>');
+    expect(ssml).not.toContain('<say-as interpret-as="digits">12355</say-as>');
+  });
+
+  it('hyphenated phone → per-group hanzi', () => {
+    const ssml = sanitize('打 400-161-9995');
+    expect(ssml).toContain('四零零');
+    expect(ssml).toContain('一六一');
+    expect(ssml).toContain('九九九五');
+    // No leftover cardinal wrap for any phone segment
+    expect(ssml).not.toContain('<say-as interpret-as="cardinal">400</say-as>');
+    expect(ssml).not.toContain('<say-as interpret-as="cardinal">161</say-as>');
+  });
+
   // ── Mixed input ───────────────────────────────────────────────────────────
 
   it('mixed: quote + digit → emphasis + say-as, well-formed XML', () => {
