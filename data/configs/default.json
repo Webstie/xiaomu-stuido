@@ -3,7 +3,7 @@
   "partitionKey": "config",
   "schemaVersion": 1,
   "createdAt": "2026-05-27T00:00:00.000Z",
-  "updatedAt": "2026-06-14T09:38:55.261Z",
+  "updatedAt": "2026-06-22T02:28:27.882Z",
   "identity": {
     "robotName": "小沐",
     "tagline": "你的音乐小伙伴 — Your little music companion",
@@ -281,7 +281,7 @@
             "audioFilenames": [
               "3-7.mp3"
             ],
-            "narrationScript": "小朋友们好！今天我们要一起唤醒我们身体的节奏。先来拍拍手吧。能跟着我慢慢拍吗？一、二、三、四……太棒了！现在，用同样的节奏轻轻拍拍你的膝盖。拍……拍……拍……真不错！现在一边拍手一边拍膝盖。你们节奏保持得真好！\n\n接下来我们来玩一个有趣的回声游戏。我会拍一个节奏，你们要一模一样地学出来。先拍两下手，像这样——拍拍!你们能跟着做吗？太棒啦！接下来，拍两下手，再拍一下腿——拍拍、拍。我们慢慢来试一次。完美！你们学节奏已经像小专家一样啦！\n\n我们来假装自己是小动物吧！你能像小兔子一样跳吗？跳、跳、跳！太棒啦！现在假装像大象一样跺脚……咚、咚、咚。真厉害！接着，我们像小鸟一样在天空中扇动翅膀。扇、扇、扇！你们看到了吗？你们的身体正跟着音乐的节拍在动呢！小动物们让节奏变得更有趣，我们也能像它们一样动起来！\n\n呜呜——！我们变成一列节奏小火车，一起出发吧！先拍拍手，那是火车头的声音；再拍拍腿，那是车轮的声音；再拍手，再拍腿。我们慢慢地重复这个节奏。太棒啦！现在让我们的火车跑得快一点！拍手、拍腿、拍手、拍腿、拍手、拍腿……哇，你们的小火车跑得好快呀！记住，火车停下来的时候，我们也要定住不动哦。你们跟着节奏、让全身一起动起来，真是了不起！\n\n现在我们来玩一首身体打击乐的歌。跟着节拍拍手——拍、拍、拍！轻轻拍拍膝盖——拍、拍、拍！拍拍肩膀——拍、拍、拍！举起手高高地摸一摸天空——举、举、举！太棒啦！我们再来一次，不过这一次，我们要假装拍手的声音是小雨滴，拍膝盖的声音是丛林里的鼓声，肩膀是山峰，高高举起的手臂是天空中的烟花。这样让节奏变得又刺激又有趣，真是太棒啦！\n\n哇，小朋友们，你们今天做得太棒啦！最后，我们来做一个深呼吸，把手臂像大树一样伸向天空，再慢慢放回地面。你们的身体跟着节拍律动，模仿了小动物和小火车，还创造了这么多有趣的想象。你们的节奏感和想象力都太厉害了！"
+            "narrationScript": "小朋友们好！今天我们要一起唤醒我们身体的节奏。先来拍拍手吧。能跟着我慢慢拍吗？一、二、三、四……太棒了！现在，用同样的节奏轻轻拍拍你的膝盖。拍……拍……拍……真不错！现在一边拍手一边拍膝盖。你们节奏保持得真好！\n\n接下来我们来玩一个有趣的回声游戏。我会拍一个节奏，你们要一模一样地学出来。先拍两下手，像这样——拍拍!你们能跟着做吗？太棒啦！接下来，拍两下手，再拍一下腿——拍拍、拍。我们慢慢来试一次。完美！你们学节奏已经像小专家一样啦！\n\n我们来假装自己是小动物吧！你能像小兔子一样跳吗？跳、跳、跳！太棒啦！现在假装像大象一样跺脚……咚、咚、咚。真厉害！接着，我们像小鸟一样在天空中扇动翅膀。扇、扇、扇！你们看到了吗？你们的身体正跟着音乐的节拍在动呢！小动物们让节奏变得更有趣，我们也能像它们一样动起来！\n\n呜呜——！我们变成一列节奏小火车，一起出发吧！先拍拍手，那是火车头的声音；再拍拍腿，那是车轮的声音；再拍手，再拍腿。我们慢慢地重复这个节奏。太棒啦！现在让我们的火车跑得快一点！拍手、拍腿、拍手、拍腿、拍手、拍腿……哇，你们的小火车跑得好快呀！记住，火车停下来的时候，我们也要定住不动哦。你们跟着节奏、让全身一起动起来，真是了不起！\n\n哇，小朋友们，你们今天做得太棒啦！最后，我们来做一个深呼吸，把手臂像大树一样伸向天空，再慢慢放回地面。你们的身体跟着节拍律动，模仿了小动物和小火车，还创造了这么多有趣的想象。你们的节奏感和想象力都太厉害了！"
           },
           {
             "minAge": 8,
@@ -718,7 +718,6 @@
     ],
     "distressResponseScript": "嗯……我听到你说的了。\n\n你心里这样的感觉，对我很重要。我不会假装没听见，也不会催你赶快好起来。\n\n你现在不是一个人。你身边有没有一个你信任的大人——爸爸、妈妈、护士姐姐、或者医生叔叔——我们可以一起把你心里现在的感觉告诉他/她，好吗？我会一直在这里陪你。",
     "distressCaregiverNote": "⚠️ Distress signal detected. The scripted flow / activity / LLM call was bypassed and a fixed compassionate response was spoken. Please notify the on-shift caregiver before continuing the session.",
-    "comfortMusicFiles": ["柔和音乐.mp3", "柔和音乐2.mp3"],
     "assistantDistressMarkers": [
       "护士",
       "医生",
@@ -738,6 +737,10 @@
       "tell a grown-up",
       "you're important",
       "you are important"
+    ],
+    "comfortMusicFiles": [
+      "柔和音乐.mp3",
+      "柔和音乐2.mp3"
     ]
   },
   "musicPreferences": [
@@ -745,24 +748,52 @@
       "minAge": 3,
       "maxAge": 5,
       "maxVolume": 55,
-      "allowlist": ["lullaby", "soft-classical", "nature-sounds"],
-      "blocklist": ["heavy metal", "explicit hip-hop", "horror soundscapes"],
+      "allowlist": [
+        "lullaby",
+        "soft-classical",
+        "nature-sounds"
+      ],
+      "blocklist": [
+        "heavy metal",
+        "explicit hip-hop",
+        "horror soundscapes"
+      ],
       "avoidNotes": "Very gentle dynamics. No sudden loud sounds. Slow tempos. Fade in/out all audio."
     },
     {
       "minAge": 6,
       "maxAge": 9,
       "maxVolume": 65,
-      "allowlist": ["soft-classical", "playful-pop", "nature-sounds", "world-percussion"],
-      "blocklist": ["heavy metal", "explicit hip-hop", "horror soundscapes"],
+      "allowlist": [
+        "soft-classical",
+        "playful-pop",
+        "nature-sounds",
+        "world-percussion"
+      ],
+      "blocklist": [
+        "heavy metal",
+        "explicit hip-hop",
+        "horror soundscapes"
+      ],
       "avoidNotes": "Prefer gentle dynamics. Mid-tempo OK. Avoid jarring stings."
     },
     {
       "minAge": 10,
       "maxAge": 99,
       "maxVolume": 75,
-      "allowlist": ["classical", "indie-pop", "ambient", "lo-fi", "world", "soundtrack"],
-      "blocklist": ["heavy metal", "explicit hip-hop", "horror soundscapes"],
+      "allowlist": [
+        "classical",
+        "indie-pop",
+        "ambient",
+        "lo-fi",
+        "world",
+        "soundtrack"
+      ],
+      "blocklist": [
+        "heavy metal",
+        "explicit hip-hop",
+        "horror soundscapes"
+      ],
       "avoidNotes": "Tolerates more dynamic range; still no jump-scares or aggressive distortion."
     }
   ]

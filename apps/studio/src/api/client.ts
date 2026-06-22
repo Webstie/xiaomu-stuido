@@ -68,11 +68,11 @@ export interface RiskAssessment {
   risk_level: RiskLevel;
 }
 
-export async function assessUserRisk(text: string): Promise<RiskAssessment> {
+export async function assessUserRisk(text: string, context?: string): Promise<RiskAssessment> {
   const res = await fetch('/api/risk-assess', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, ...(context ? { context } : {}) }),
   });
   if (!res.ok) {
     // Fail safe — never block a turn because the classifier endpoint hiccuped.

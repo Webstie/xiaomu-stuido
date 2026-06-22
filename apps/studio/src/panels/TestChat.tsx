@@ -119,6 +119,12 @@ const GAME_POOL_EXHAUSTED_PROMPT = '那你想做什么呢?我们可以做呼吸�
 const RE_ASK_GAME_NAME_UNMATCHED = '哎呀这个名字我好像没对上,不过我这里有这些游戏可以选:身体小乐队、跟着音乐深呼吸、音乐心情猜猜猜、三个音符变魔法。你对哪个好奇呀?';
 const RE_ASK_GAME_NAME_VAGUE = '太好啦!那你想先试哪一个呢?我这里有四种小游戏等着你呢,挑一个名字最吸引你的就行～';
 
+// Spoken once when all seven emotions in 音乐心情猜猜猜 have been heard. This is
+// a fixed CLOSING line (a question, but the answer is routed through the
+// scripted game-pick machine — never back into the model with start_activity,
+// so the activity can't auto-restart). See the emotion-mapping branch in onDone.
+const EMOTION_MAPPING_CLOSING = '七种心情都听完啦！你想歇一歇，还是换一个小游戏呢？';
+
 // Fixed safety responses — spoken in place of scripted dispatch / LLM when
 // the front-line safety check fires. These short-circuit BEFORE any scripted
 // step so distress can never be swallowed by the intro yes/no classifier.
@@ -295,6 +301,54 @@ const WEATHER_PROMPT_YOUNG =
 
 function weatherPromptForAge(prompt: string, childAge: number): string {
   return childAge <= 7 ? WEATHER_PROMPT_YOUNG : prompt;
+}
+
+// Kids answer the age question in whatever form is natural: "3", "3岁",
+// "三", "三岁了", "我五岁", "两岁半". A bare /\d+/ only catches the
+// Western-digit cases and silently drops Chinese numerals (which is why
+// "三岁了" used to leave childAge stuck on the default while "3" worked).
+// parseAgeFromText covers both. Returns null when nothing numeric is found.
+const CN_DIGITS: Record<string, number> = {
+  '零': 0, '〇': 0,
+  '一': 1, '壹': 1, '幺': 1,
+  '二': 2, '两': 2, '俩': 2, '贰': 2,
+  '三': 3, '叁': 3,
+  '四': 4, '肆': 4,
+  '五': 5, '伍': 5,
+  '六': 6, '陆': 6,
+  '七': 7, '柒': 7,
+  '八': 8, '捌': 8,
+  '九': 9, '玖': 9,
+};
+const CN_UNITS: Record<string, number> = { '十': 10, '拾': 10, '百': 100, '佰': 100 };
+
+function parseAgeFromText(text: string): number | null {
+  // Western digits win when present (e.g. "3", "3岁").
+  const ascii = text.match(/\d+/);
+  if (ascii) {
+    const n = parseInt(ascii[0], 10);
+    return Number.isFinite(n) ? n : null;
+  }
+  // Fall back to Chinese numerals. Handles 一–九, 两/俩, and 十/百 compounds
+  // (十五 = 15, 二十三 = 23, 一百二十 = 120). Non-numeral chars (岁, 了, 半…)
+  // are ignored. This easily spans the [1, 120] age range we validate against.
+  let section = 0; // accumulated value within the current 十/百 run
+  let current = 0; // pending standalone digit not yet multiplied by a unit
+  let sawNumeral = false;
+  for (const ch of text) {
+    const digit = CN_DIGITS[ch];
+    const unit = CN_UNITS[ch];
+    if (digit !== undefined) {
+      current = digit;
+      sawNumeral = true;
+    } else if (unit !== undefined) {
+      // Bare leading "十" means one ten (十五 = 15, not 0×10).
+      section += (current === 0 ? 1 : current) * unit;
+      current = 0;
+      sawNumeral = true;
+    }
+  }
+  return sawNumeral ? section + current : null;
 }
 
 const RETURNING_SESSION_INTROS = [
@@ -789,7 +843,7 @@ export default function TestChat() {
    * for the new emotion starts at full volume.
    */
   const startEmotionMappingTimer = useCallback(
-    (totalMs: number, fadeMs: number) => {
+    (totalMs: number, fadeMs: number, onComplete?: () => void) => {
       if (emotionTimerRafRef.current !== null) {
         cancelAnimationFrame(emotionTimerRafRef.current);
         emotionTimerRafRef.current = null;
@@ -810,6 +864,12 @@ export default function TestChat() {
 
         if (now >= advanceAt) {
           emotionTimerRafRef.current = null;
+          if (onComplete) {
+            // Final emotion's window elapsed — hand off (e.g. the closing line)
+            // instead of advancing to a non-existent next emotion / "继续".
+            onComplete();
+            return;
+          }
           // Advance the playlist to the next emotion's audio.
           setActivityPlaylist((prev) => {
             if (!prev) return null;
@@ -1338,7 +1398,18 @@ export default function TestChat() {
 
     if (!opts.silent && !overrideText) {
       try {
-        const r = await assessUserRisk(text);
+        // Pass the robot's previous line as context so the classifier reads a
+        // vague reply in situ — a bare "没有意思" answering "你今天过得怎么样" is
+        // boredom (safe), not the existential "没有意思" (concerning) the model
+        // assumes with no context. The robot's last line is the last assistant
+        // entry in apiHistory (the child's current text isn't appended until the
+        // per-step handlers below). Trailing slice keeps the closing question of
+        // long daily-story intros and bounds the payload.
+        const lastRobotLine = [...apiHistoryRef.current]
+          .reverse()
+          .find((m) => m.role === 'assistant')
+          ?.content.slice(-300);
+        const r = await assessUserRisk(text, lastRobotLine);
         if (r.risk_level === 'high_risk') {
           safetyBlocked = true;
         } else if (r.risk_level === 'concerning') {
@@ -1674,14 +1745,11 @@ export default function TestChat() {
       // in [1, 120] wins; if the kid types nothing parseable we keep the
       // existing default and the model still gets a usable age bucket.
       let effectiveAge = childAgeRef.current;
-      const ageMatch = text.match(/\d+/);
-      if (ageMatch) {
-        const parsed = parseInt(ageMatch[0], 10);
-        if (parsed >= 1 && parsed <= 120) {
-          setChildAge(parsed);
-          childAgeRef.current = parsed;
-          effectiveAge = parsed;
-        }
+      const parsed = parseAgeFromText(text);
+      if (parsed !== null && parsed >= 1 && parsed <= 120) {
+        setChildAge(parsed);
+        childAgeRef.current = parsed;
+        effectiveAge = parsed;
       }
 
       const weatherPrompt = isShort
@@ -1720,13 +1788,10 @@ export default function TestChat() {
     // underneath. The next step mirrors the original returning flow:
     // 'returning-intro-answer'.
     if (effectiveStep === 'returning-age') {
-      const ageMatch = text.match(/\d+/);
-      if (ageMatch) {
-        const parsed = parseInt(ageMatch[0], 10);
-        if (parsed >= 1 && parsed <= 120) {
-          setChildAge(parsed);
-          childAgeRef.current = parsed;
-        }
+      const parsed = parseAgeFromText(text);
+      if (parsed !== null && parsed >= 1 && parsed <= 120) {
+        setChildAge(parsed);
+        childAgeRef.current = parsed;
       }
 
       const userMsg: Transcript = { id: uid(), role: 'user', content: text };
@@ -2482,9 +2547,49 @@ export default function TestChat() {
           if (aa && aa.totalSections !== undefined) {
             cancelAutoAdvance();
             // Emotion-mapping: every section is a fixed 20s window regardless of TTS or mute state.
-            if (aa.id === 'emotion-music-mapping' && nextIdx <= aa.totalSections) {
+            if (aa.id === 'emotion-music-mapping') {
               setAutoAdvancePending(true);
-              startEmotionMappingTimer(20000, 3000);
+              if (nextIdx < aa.totalSections) {
+                // More emotions to go — play this one for 20s, then "继续".
+                startEmotionMappingTimer(20000, 3000);
+              } else {
+                // The LAST emotion is now playing. Give it the same 20s window,
+                // then close the activity DETERMINISTICALLY. Previously an
+                // out-of-range "继续" fired here, making the model freestyle a
+                // wrap-up question, after which the activity auto-ended — so the
+                // child's answer hit a fresh start_activity and replayed the
+                // whole thing. Instead: end the activity (nothing can restart
+                // it), seed the remaining games, speak a fixed closing question,
+                // and route the answer through the scripted game-pick machine,
+                // which never re-opens 音乐心情猜猜猜.
+                startEmotionMappingTimer(20000, 3000, () => {
+                  cancelAutoAdvance();
+                  setActiveActivity(null);
+                  activeActivityRef.current = null;
+                  setActivitySectionIndex(0);
+                  sectionIndexRef.current = 0;
+                  setActivityPlaylist(null);
+                  activityAudioRef.current?.pause();
+                  gamePoolRef.current = ['rhythm', 'breathing', 'co-creation'];
+                  introducedGamesRef.current = new Set(['emotion-mapping']);
+                  currentGameRef.current = null;
+                  const closeId = uid();
+                  const closeMsg: Transcript = {
+                    id: closeId, role: 'assistant', content: EMOTION_MAPPING_CLOSING,
+                  };
+                  setTranscript((prev) => [...prev, closeMsg]);
+                  apiHistoryRef.current = [
+                    ...apiHistoryRef.current,
+                    { role: 'assistant', content: EMOTION_MAPPING_CLOSING },
+                  ];
+                  setScriptedSessionStep('game-pick');
+                  scriptedSessionStepRef.current = 'game-pick';
+                  setFaceExpr('gentle');
+                  void callTts(EMOTION_MAPPING_CLOSING, closeId).finally(() => {
+                    setTimeout(() => setFaceExpr('calm'), 500);
+                  });
+                });
+              }
               return;
             }
             const len = finalContent.length || 100;

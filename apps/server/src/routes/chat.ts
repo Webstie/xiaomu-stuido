@@ -42,7 +42,14 @@ function getClient(): AzureOpenAI {
     );
   }
 
-  return new AzureOpenAI({ endpoint, apiKey: key, deployment, apiVersion });
+  // reason: the openai SDK (v4) bundles node-fetch on Node, and node-fetch
+  // mishandles how the Azure regional Cognitive Services endpoint closes its
+  // chunked text/event-stream connection — it throws "Premature close"
+  // (ERR_STREAM_PREMATURE_CLOSE) on EVERY streamed chat completion. Non-stream
+  // calls are unaffected. Node's built-in fetch (undici) reads the identical
+  // SSE stream cleanly, so we hand it to the SDK explicitly. Verified: default
+  // fetch fails 3/3, globalThis.fetch succeeds 3/3 against the same deployment.
+  return new AzureOpenAI({ endpoint, apiKey: key, deployment, apiVersion, fetch: globalThis.fetch });
 }
 
 // ── Request schema ────────────────────────────────────────────────────────────
@@ -371,6 +378,34 @@ interface ToolCallAccum {
 
 const MAX_TOOL_ITERATIONS = 4;
 
+// One automatic replay of the generation when the upstream stream drops before
+// we've sent the client anything. After the first token/tool_call goes out a
+// replay would duplicate output, so we only retry from a clean slate.
+const MAX_STREAM_RETRIES = 1;
+
+/**
+ * Transient upstream-stream failures from the Azure OpenAI SDK surface as
+ * undici socket errors — most often "Premature close"
+ * (ERR_STREAM_PREMATURE_CLOSE) when the connection drops mid-completion, but
+ * also ECONNRESET / "socket hang up" / "terminated". These are safe to replay.
+ * Content-filter 400s and other API errors are NOT transient and must surface
+ * to the operator unchanged.
+ */
+function isTransientStreamError(err: unknown): boolean {
+  const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  return (
+    msg.includes('premature close') ||
+    msg.includes('econnreset') ||
+    msg.includes('socket hang up') ||
+    msg.includes('terminated') ||
+    msg.includes('econnrefused') ||
+    msg.includes('etimedout')
+  );
+}
+
+const delay = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
 export async function registerChatRoute(app: FastifyInstance): Promise<void> {
   app.post('/api/chat', async (request, reply) => {
     const parseResult = ChatBodySchema.safeParse(request.body);
@@ -422,7 +457,10 @@ export async function registerChatRoute(app: FastifyInstance): Promise<void> {
       '• Keep the whole reply under 4 short sentences. No questions about ' +
       'colors, weather, animals, or mood metaphors.';
 
-    const oaiMessages: OAIMessage[] = [
+    // Pristine message list. runGeneration mutates a *copy* per attempt so a
+    // retry always starts from this exact request state (tool replies from a
+    // failed attempt never leak into the replay).
+    const baseMessages: OAIMessage[] = [
       { role: 'system', content: systemPrompt },
       ...(concerningMode ? [{ role: 'system', content: CONCERNING_MODE_NOTE }] : []),
       ...messages.map((m) => ({ role: m.role, content: m.content })),
@@ -438,15 +476,25 @@ export async function registerChatRoute(app: FastifyInstance): Promise<void> {
       'X-Accel-Buffering': 'no',
     });
 
+    // True once we've streamed something meaningful to the client. Gates the
+    // retry: once output has started, the only safe move on a drop is to fail.
+    let emittedAnything = false;
     const sendEvent = (data: Record<string, unknown>): void => {
+      const t = data['type'];
+      if (t === 'text' || t === 'expression' || t === 'tool_call') emittedAnything = true;
       raw.write(`data: ${JSON.stringify(data)}\n\n`);
     };
 
     const log = request.log.child({ route: 'chat', configId, childAge });
 
-    try {
+    // One full generation pass: stream → resolve tools → re-stream, emitting
+    // SSE events as it goes. Throws on an upstream/stream error so the caller
+    // can decide whether to replay. Self-contained so a replay is clean.
+    const runGeneration = async (): Promise<void> => {
       const client = getClient();
       const classifier = createClauseClassifier();
+      // Fresh copy each attempt — never replay onto a half-mutated list.
+      const oaiMessages: OAIMessage[] = baseMessages.map((m) => ({ ...m }));
       let promptTokens = 0;
       let completionTokens = 0;
 
@@ -500,7 +548,7 @@ export async function registerChatRoute(app: FastifyInstance): Promise<void> {
         return resolved.sections[idx]!.slice(0, PREAMBLE_PROBE_LEN);
       }
 
-      let expectedScriptStart: string | null = computeExpectedStart();
+      const expectedScriptStart: string | null = computeExpectedStart();
 
       // Tool-call loop: stream → if tool calls, resolve → re-stream → repeat.
       for (let iter = 0; iter < MAX_TOOL_ITERATIONS; iter++) {
@@ -754,10 +802,34 @@ export async function registerChatRoute(app: FastifyInstance): Promise<void> {
 
       log.info({ promptTokens, completionTokens, temperature }, 'chat completed');
       sendEvent({ type: 'done', usage: { promptTokens, completionTokens } });
+    };
 
+    try {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          await runGeneration();
+          break;
+        } catch (streamErr: unknown) {
+          // Replay once on a transient drop, but only while the response is
+          // still empty — otherwise the client would see duplicated text.
+          if (attempt < MAX_STREAM_RETRIES && !emittedAnything && isTransientStreamError(streamErr)) {
+            log.warn({ err: streamErr, attempt }, 'transient Azure stream drop — replaying generation');
+            await delay(250);
+            continue;
+          }
+          throw streamErr;
+        }
+      }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const rawMsg = err instanceof Error ? err.message : String(err);
       log.error({ err }, 'chat stream error');
+      // A bare "Premature close" in the chat bubble reads like a hard crash.
+      // If we reach here on a transient error it means the replay also failed
+      // (or output had already started, so we couldn't replay) — say so plainly
+      // and tell the operator it's safe to resend.
+      const msg = isTransientStreamError(err)
+        ? `Upstream stream dropped ("${rawMsg}") — transient Azure/network issue. Already retried; please send the message again.`
+        : rawMsg;
       sendEvent({ type: 'error', message: msg });
     } finally {
       raw.end();

@@ -51,21 +51,44 @@ const SCHEMAS = {
   },
   'activity-intent': {
     labels: ['yes', 'no'] as const,
+    // DECISION RULE, not a word list. The child is being asked a scripted
+    // question (intro chit-chat, age, weather, a yes/no, or "what would you like
+    // to do?"). Default is NO; only an EXPLICIT activity request or skip flips it
+    // to YES. This is deliberately framed as a principle so phrasings that aren't
+    // enumerated still resolve correctly — e.g. a bored complaint that happens to
+    // contain "好玩 / 玩 / 意思" ("没意思", "不好玩", "没有什么好玩的", "没劲",
+    // "提不起劲") is the child ANSWERING the question (a mood reply), NOT a
+    // request to start an activity, so it must be NO. Note: wanting to STOP a
+    // game mid-activity is a different decision handled by the `quit-activity`
+    // schema; do not fold quit/stop reasoning in here.
     instruction:
-      'Does the user text express CLEAR direct intent to (a) start one of these activities — ' +
-      'breathing (呼吸练习), body rhythm (身体小乐队 / 身体律动), ' +
-      'music mood guessing (音乐心情猜猜猜 / 情绪-音乐映射), ' +
-      'three notes turn into magic (三个音符变魔法 / 共创编曲) — OR (b) skip the current intro / ' +
-      'game / scripted question to do something else? ' +
-      'Reply with exactly ONE word: yes or no.\n' +
-      'Examples that are YES: "我想创作音乐", "三个音符变魔法", "想做身体小乐队", ' +
-      '"想做身体律动", "可以做呼吸练习吗", "音乐心情猜猜猜", "我们直接玩音乐吧", ' +
-      '"我想做音乐探险", "跳过", "skip", "i want to make music".\n' +
-      'Examples that are NO (just answering the scripted question): ' +
-      '"是" / "不是" (yes/no to a question), "我7岁" (giving age), "晴天" / "雨天" (weather), ' +
-      '"我拍完啦" (finishing rhythm game), "鸡" / "狗" / "鸟" (sound-detective guess), ' +
-      '"开心" / "难过" (mood reply), "好" / "嗯" (short ack), "再见" (goodbye). ' +
-      'When unsure between yes and no, choose no.',
+      'The child is in a guided music session and was just asked a scripted ' +
+      'question (intro chit-chat such as "how was your day", their age, the ' +
+      'weather, a yes/no question, or "what would you like to do?"). Decide ONE ' +
+      'thing: is the child trying to START or SKIP TO a specific activity right ' +
+      'now, INSTEAD of just answering that question?\n' +
+      'The four activities are: breathing (呼吸练习), body rhythm (身体小乐队 / ' +
+      '身体律动), music mood guessing (音乐心情猜猜猜 / 情绪-音乐映射), three notes ' +
+      'turn into magic (三个音符变魔法 / 共创编曲).\n' +
+      'Answer YES ONLY when the child EXPLICITLY:\n' +
+      '  • names or asks for one of the four activities ("想做身体小乐队", ' +
+      '"可以做呼吸练习吗", "三个音符变魔法", "音乐心情猜猜猜"), or\n' +
+      '  • clearly asks to start playing / making music ("我们直接玩音乐吧", ' +
+      '"我想创作音乐", "i want to make music"), or\n' +
+      '  • clearly asks to skip / change / move on to something else ("跳过", ' +
+      '"skip", "换一个", "看别的", "下一个", "不想听故事了，玩点别的").\n' +
+      'Answer NO for EVERYTHING ELSE — this is the default. A vague, negative, ' +
+      'bored, sad, tired, flat, or off-topic reply is the child ANSWERING the ' +
+      'question, NOT a request to start an activity. Complaining that nothing is ' +
+      'fun or that they are bored — even when the words contain 好玩 / 玩 / 意思 ' +
+      '("没意思", "不好玩", "没有什么好玩的", "无聊", "没劲", "都不好玩", "提不起劲", ' +
+      '"今天不开心") — is a MOOD answer and must be NO. Short acks ("好", "嗯", ' +
+      '"对"), ages ("我7岁"), weather ("晴天"), moods ("开心", "难过"), ' +
+      'sound-detective guesses ("鸡", "狗"), "我拍完啦", and goodbyes ("再见") are ' +
+      'also NO.\n' +
+      'Rule of thumb: if the child did NOT name an activity and did NOT clearly ' +
+      'ask to skip/change, answer NO. When unsure, answer NO.\n' +
+      'Reply with exactly ONE word: yes or no.',
   },
   'task-completed': {
     labels: ['yes', 'no'] as const,
