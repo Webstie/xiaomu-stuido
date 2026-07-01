@@ -558,8 +558,7 @@ export async function registerChatRoute(app: FastifyInstance): Promise<void> {
           model:       process.env['AZURE_FOUNDRY_DEPLOYMENT'] ?? '',
           messages:    oaiMessages as never,
           stream:      true,
-          temperature,
-          max_tokens:  800,
+          max_completion_tokens: 1000,
           ...(turnTools.length > 0
             ? {
                 tools: turnTools,

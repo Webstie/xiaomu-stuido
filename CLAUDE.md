@@ -4,7 +4,7 @@
 
 ## 1. What this is
 
-**小沐 (Xiaomu) Studio** — a local-first web app that lets the project team tune a music-therapy companion robot for hospitalized children (ages 3–12+). The studio configures persona, activities, expressions, safety rules, emotion routing, and voice/face fidelity. The studio is the **configuration & simulation layer**. The robot (Jetson Orin Nano + LED face display) is a separate future build that consumes the studio's exported `StudioBundle`.
+**小沐 (Xiaomu) Studio** — a local-first web app that lets the project team tune a music-therapy companion robot for hospitalized children (ages 3–12+). The studio configures persona, activities, expressions, safety rules, emotion routing, and voice/face fidelity. The studio is the **configuration & simulation layer**. The robot is a **Yahboom Rider-Pi (Raspberry Pi CM5)** with a 2-inch SPI LCD face — *not* the Jetson Orin Nano originally planned. As of 2026-06 the robot runtime is **built and deployed** (Python embodiment in `robot/` + the reused Node server as the on-device brain; boots into the experience via systemd). It consumes the studio's exported `StudioBundle`. See `robot/HANDOFF.md` and the `rider-pi-hardware` / `robot-runtime-plan` memories.
 
 **Primary users of the studio**: 1–3 people (designer / therapist / engineer mix).
 **End users of the robot**: hospitalized children. **No patient data flows through this system.**

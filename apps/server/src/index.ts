@@ -18,6 +18,7 @@ import { registerAudioRoutes } from './routes/audio.js';
 import { registerClassifyRoute } from './routes/classify.js';
 import { registerRiskRoute } from './routes/risk.js';
 import { registerTranscribeRoute } from './routes/transcribe.js';
+import { registerPublishRoutes } from './routes/publish.js';
 
 const PORT = parseInt(process.env['PORT'] ?? '8787', 10);
 
@@ -64,6 +65,7 @@ await registerVoiceLiveRoute(app);
 await registerAudioRoutes(app);
 await registerClassifyRoute(app);
 await registerTranscribeRoute(app);
+await registerPublishRoutes(app);
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 try {

@@ -1372,6 +1372,13 @@ export default function TestChat() {
     // TTS doesn't talk over it; the widget stays in the transcript for replay.
     pauseComfortMusic();
 
+    const visibleUserMsg: Transcript | null = opts.silent
+      ? null
+      : { id: uid(), role: 'user', content: text };
+
+    if (visibleUserMsg) {
+      setTranscript((prev) => [...prev, visibleUserMsg]);
+    }
     if (!opts.silent && !overrideText) setInput('');
 
     // ── Two-layer safety check ──────────────────────────────────────────
@@ -1467,7 +1474,7 @@ export default function TestChat() {
       setVisemeStream([]);
       if (activeActivityRef.current) endActivity();
 
-      const userMsg: Transcript = {
+      const userMsg: Transcript = visibleUserMsg ?? {
         id: uid(), role: 'user', content: text,
       };
       const responseMsg: Transcript = {
@@ -1475,7 +1482,7 @@ export default function TestChat() {
         role: 'assistant',
         content: HIGH_RISK_RESPONSE,
       };
-      setTranscript((prev) => [...prev, userMsg, responseMsg]);
+      setTranscript((prev) => visibleUserMsg ? [...prev, responseMsg] : [...prev, userMsg, responseMsg]);
       // Intentionally NOT appended to apiHistoryRef — the LLM never sees
       // the distress text and never sees this fixed reply, so a later
       // turn can't accidentally echo the phrase or the hotline numbers.
@@ -1513,7 +1520,7 @@ export default function TestChat() {
       setVisemeStream([]);
       if (activeActivityRef.current) endActivity();
 
-      const userMsg: Transcript = {
+      const userMsg: Transcript = visibleUserMsg ?? {
         id: uid(), role: 'user', content: text,
       };
       const responseMsg: Transcript = {
@@ -1521,7 +1528,7 @@ export default function TestChat() {
         role: 'assistant',
         content: CONCERNING_RESPONSE,
       };
-      setTranscript((prev) => [...prev, userMsg, responseMsg]);
+      setTranscript((prev) => visibleUserMsg ? [...prev, responseMsg] : [...prev, userMsg, responseMsg]);
       // Match the high_risk pattern: don't pollute apiHistory with the
       // distress turn. The next user reply will be handled by the
       // 'concerning-music-offer' step below (yes → play music, else → reset).
@@ -1616,8 +1623,8 @@ export default function TestChat() {
     // skip dispatchScriptedOrBypass: the child just heard a distress
     // response, "activity intent" doesn't apply here.
     if (effectiveStep === 'concerning-music-offer') {
-      const userMsg: Transcript = { id: uid(), role: 'user', content: text };
-      setTranscript((prev) => [...prev, userMsg]);
+      const userMsg: Transcript = visibleUserMsg ?? { id: uid(), role: 'user', content: text };
+      if (!visibleUserMsg) setTranscript((prev) => [...prev, userMsg]);
       setStreaming(true);
       setFaceExpr('thinking');
 
@@ -1668,10 +1675,10 @@ export default function TestChat() {
       // Show the user message immediately; show a streaming placeholder while
       // we classify yes/no via the model. The classifier is one chat call,
       // fast, but not instantaneous.
-      const userMsg: Transcript = { id: uid(), role: 'user', content: text };
+      const userMsg: Transcript = visibleUserMsg ?? { id: uid(), role: 'user', content: text };
       const placeholderId = uid();
       const placeholder: Transcript = { id: placeholderId, role: 'assistant', content: '', streaming: true };
-      setTranscript((prev) => [...prev, userMsg, placeholder]);
+      setTranscript((prev) => visibleUserMsg ? [...prev, placeholder] : [...prev, userMsg, placeholder]);
       setStreaming(true);
       setFaceExpr('thinking');
 
@@ -1756,8 +1763,8 @@ export default function TestChat() {
         ? getShortWeatherPrompt()
         : weatherPromptForAge(getWeatherPrompt(), effectiveAge);
 
-      const userMsg: Transcript = { id: uid(), role: 'user', content: text };
-      setTranscript((prev) => [...prev, userMsg]);
+      const userMsg: Transcript = visibleUserMsg ?? { id: uid(), role: 'user', content: text };
+      if (!visibleUserMsg) setTranscript((prev) => [...prev, userMsg]);
       apiHistoryRef.current = [...apiHistoryRef.current, { role: 'user', content: text }];
       setStreaming(true);
       setFaceExpr('thinking');
@@ -1794,8 +1801,8 @@ export default function TestChat() {
         childAgeRef.current = parsed;
       }
 
-      const userMsg: Transcript = { id: uid(), role: 'user', content: text };
-      setTranscript((prev) => [...prev, userMsg]);
+      const userMsg: Transcript = visibleUserMsg ?? { id: uid(), role: 'user', content: text };
+      if (!visibleUserMsg) setTranscript((prev) => [...prev, userMsg]);
       apiHistoryRef.current = [...apiHistoryRef.current, { role: 'user', content: text }];
       setStreaming(true);
       setFaceExpr('thinking');
@@ -1827,8 +1834,8 @@ export default function TestChat() {
     // completion handler (game-1-completion / game-2-answer) appends the
     // WEATHER PROMPT and transitions to weather-game-choice afterward.
     if (effectiveStep === 'returning-intro-answer') {
-      const userMsg: Transcript = { id: uid(), role: 'user', content: text };
-      setTranscript((prev) => [...prev, userMsg]);
+      const userMsg: Transcript = visibleUserMsg ?? { id: uid(), role: 'user', content: text };
+      if (!visibleUserMsg) setTranscript((prev) => [...prev, userMsg]);
       apiHistoryRef.current = [...apiHistoryRef.current, { role: 'user', content: text }];
       setStreaming(true);
       setFaceExpr('thinking');
@@ -1919,8 +1926,8 @@ export default function TestChat() {
     // when the child says "look at others" until it's empty, at which point
     // we hand back to the model via 'game-pool-exhausted'.
     if (effectiveStep === 'weather-game-choice') {
-      const userMsg: Transcript = { id: uid(), role: 'user', content: text };
-      setTranscript((prev) => [...prev, userMsg]);
+      const userMsg: Transcript = visibleUserMsg ?? { id: uid(), role: 'user', content: text };
+      if (!visibleUserMsg) setTranscript((prev) => [...prev, userMsg]);
       apiHistoryRef.current = [...apiHistoryRef.current, { role: 'user', content: text }];
       setStreaming(true);
       setFaceExpr('thinking');
@@ -1999,8 +2006,8 @@ export default function TestChat() {
     // the card the child explicitly asked to hear. At this step the user IS
     // answering the scripted question, so the scripted reply always runs.
     if (effectiveStep === 'game-pick') {
-      const userMsg: Transcript = { id: uid(), role: 'user', content: text };
-      setTranscript((prev) => [...prev, userMsg]);
+      const userMsg: Transcript = visibleUserMsg ?? { id: uid(), role: 'user', content: text };
+      if (!visibleUserMsg) setTranscript((prev) => [...prev, userMsg]);
       apiHistoryRef.current = [...apiHistoryRef.current, { role: 'user', content: text }];
       setStreaming(true);
       setFaceExpr('thinking');
@@ -2082,8 +2089,8 @@ export default function TestChat() {
     // bare game names ("呼吸") would otherwise be flagged as direct intent and
     // skip past the "想试 / 看其他" prompt.
     if (effectiveStep === 'game-decide') {
-      const userMsg: Transcript = { id: uid(), role: 'user', content: text };
-      setTranscript((prev) => [...prev, userMsg]);
+      const userMsg: Transcript = visibleUserMsg ?? { id: uid(), role: 'user', content: text };
+      if (!visibleUserMsg) setTranscript((prev) => [...prev, userMsg]);
       apiHistoryRef.current = [...apiHistoryRef.current, { role: 'user', content: text }];
       setStreaming(true);
       setFaceExpr('thinking');
@@ -2204,6 +2211,9 @@ export default function TestChat() {
     // scripted scaffolding and let the model handle it — the system prompt
     // already tells it to call start_activity on direct intent.
     if (effectiveStep === 'game-pool-exhausted') {
+      if (visibleUserMsg) {
+        setTranscript((prev) => prev.filter((t) => t.id !== visibleUserMsg.id));
+      }
       setScriptedSessionStep('none');
       scriptedSessionStepRef.current = 'none';
       sendMessageRef.current?.(text);
@@ -2212,8 +2222,8 @@ export default function TestChat() {
 
     // ── Step 'game-2-answer' → AI compares guess vs sound label ───────────
     if (effectiveStep === 'game-2-answer') {
-      const userMsg: Transcript = { id: uid(), role: 'user', content: text };
-      setTranscript((prev) => [...prev, userMsg]);
+      const userMsg: Transcript = visibleUserMsg ?? { id: uid(), role: 'user', content: text };
+      if (!visibleUserMsg) setTranscript((prev) => [...prev, userMsg]);
       apiHistoryRef.current = [...apiHistoryRef.current, { role: 'user', content: text }];
       setStreaming(true);
       setFaceExpr('thinking');
@@ -2251,8 +2261,8 @@ export default function TestChat() {
 
     // ── Step 'game-1-completion' → closing line + weather prompt ──────────
     if (effectiveStep === 'game-1-completion') {
-      const userMsg: Transcript = { id: uid(), role: 'user', content: text };
-      setTranscript((prev) => [...prev, userMsg]);
+      const userMsg: Transcript = visibleUserMsg ?? { id: uid(), role: 'user', content: text };
+      if (!visibleUserMsg) setTranscript((prev) => [...prev, userMsg]);
       apiHistoryRef.current = [...apiHistoryRef.current, { role: 'user', content: text }];
       setStreaming(true);
       setFaceExpr('thinking');
@@ -2357,8 +2367,8 @@ export default function TestChat() {
     if (opts.silent) {
       setTranscript((prev) => [...prev, assistantMsg]);
     } else {
-      const userMsg: Transcript = { id: uid(), role: 'user', content: text };
-      setTranscript((prev) => [...prev, userMsg, assistantMsg]);
+      const userMsg: Transcript = visibleUserMsg ?? { id: uid(), role: 'user', content: text };
+      setTranscript((prev) => visibleUserMsg ? [...prev, assistantMsg] : [...prev, userMsg, assistantMsg]);
     }
 
     setStreaming(true);
@@ -2994,7 +3004,7 @@ export default function TestChat() {
                 onClick={skipActivityTrack}
                 disabled={activityPlaylist.index + 1 >= activityPlaylist.playlist.length}
                 className="flex items-center justify-center w-7 h-7 rounded-full text-purple-300 hover:bg-purple-500/20 transition-colors flex-shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
-                title="Next track"
+                title="切换音频"
               >
                 <SkipForward size={12} />
               </button>

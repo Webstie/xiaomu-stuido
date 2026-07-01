@@ -247,8 +247,7 @@ export async function registerRiskRoute(app: FastifyInstance): Promise<void> {
           { role: 'system', content: buildSystemContent(context) },
           { role: 'user', content: text },
         ],
-        temperature: 0,
-        max_tokens: 60,
+        max_completion_tokens: 200,
         response_format: { type: 'json_object' },
       });
       const raw = completion.choices[0]?.message?.content?.trim() ?? '{}';

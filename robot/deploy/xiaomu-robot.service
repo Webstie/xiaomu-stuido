@@ -1,0 +1,18 @@
+[Unit]
+Description=Xiaomu robot runtime (face + activities + conversation)
+After=xiaomu-brain.service network-online.target
+Wants=xiaomu-brain.service network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/xiaomu
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+# wait for the brain's HTTP to be up before the runtime loads config
+ExecStartPre=/bin/sleep 6
+ExecStart=/home/pi/RaspberryPi-CM5/xgovenv/bin/python main.py
+Restart=always
+RestartSec=4
+
+[Install]
+WantedBy=multi-user.target

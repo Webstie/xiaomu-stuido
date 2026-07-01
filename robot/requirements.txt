@@ -1,0 +1,8 @@
+# Robot embodiment deps. On the Pi these are already provided by the Yahboom
+# xgo venv (~/RaspberryPi-CM5/xgovenv): Pillow, numpy, RPi.GPIO, spidev, xgoscreen.
+# Listed here for dev machines / reproducibility.
+Pillow>=10
+numpy>=1.24
+# Pi-only (vendor-provided, do NOT pip-install on a dev Mac):
+#   xgoscreen   — XGO 2-inch LCD driver (display.LcdDisplay)
+#   RPi.GPIO    — 4-button input (hw.buttons.GpioButtons)

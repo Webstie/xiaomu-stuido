@@ -9,3 +9,10 @@ dist/
 # Runtime-only data (seed configs & personas ARE tracked)
 data/published/
 data/audit.jsonl
+
+# Compiled contracts output — source is .ts, resolved directly via tsx/Vite.
+# Stale .js here shadowed the .ts at runtime and pinned an old schema.
+packages/contracts/src/*.js
+
+# Generated robot face previews
+robot/preview/

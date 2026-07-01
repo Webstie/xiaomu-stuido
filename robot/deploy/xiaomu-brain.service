@@ -1,0 +1,17 @@
+[Unit]
+Description=Xiaomu Node brain server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/xiaomu-studio/apps/server
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=PORT=8787
+ExecStart=/usr/local/bin/pnpm exec tsx src/index.ts
+Restart=always
+RestartSec=4
+
+[Install]
+WantedBy=multi-user.target

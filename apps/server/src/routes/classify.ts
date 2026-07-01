@@ -24,6 +24,7 @@ const SCHEMAS = {
       '"我想尝试", "我想尝试一下", "尝试一下", "我要", "我想", "玩这个".\n' +
       'Examples that are NO (refusal, negation, wanting something else): ' +
       '"不", "不是", "否", "否定的", "没有", "no", "不要", "不想", "不玩了", ' +
+      '"不是第一次", "这不是我们第一次见面", "以前见过", "之前见过", "老朋友", ' +
       '"换一个", "看别的", "其他的".\n' +
       'Unrelated chat or genuinely ambiguous → unclear.',
   },
@@ -224,8 +225,7 @@ export async function registerClassifyRoute(app: FastifyInstance): Promise<void>
           { role: 'system', content: systemContent },
           { role: 'user', content: text },
         ],
-        temperature: 0,
-        max_tokens: 4,
+        max_completion_tokens: 32,
       });
       const raw = completion.choices[0]?.message?.content?.trim().toLowerCase() ?? '';
       const allowed = spec.labels as readonly string[];
